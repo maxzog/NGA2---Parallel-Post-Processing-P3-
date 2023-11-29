@@ -1,0 +1,70 @@
+FORMAT
+type: ensight gold
+
+GEOMETRY
+model: geometry
+measured: 1 particles/particle.******
+
+VARIABLE
+scalar per element: wall geometry.wall
+scalar per measured node: 1 id particles/id.******
+vector per measured node: 1 vel particles/vel.******
+vector per measured node: 1 fld particles/fld.******
+vector per measured node: 1 uf particles/uf.******
+
+TIME
+time set: 1
+number of steps: 49
+filename start number: 1
+filename increment: 1
+time values:
+ 0.00000E+00
+ 1.00000E-01
+ 2.00000E-01
+ 3.00000E-01
+ 4.00000E-01
+ 5.00000E-01
+ 6.00000E-01
+ 7.00000E-01
+ 8.00000E-01
+ 9.00000E-01
+ 1.00000E+00
+ 1.10000E+00
+ 1.20000E+00
+ 1.30100E+00
+ 1.40100E+00
+ 1.50100E+00
+ 1.60100E+00
+ 1.70100E+00
+ 1.80100E+00
+ 1.90100E+00
+ 2.00100E+00
+ 2.10100E+00
+ 2.20100E+00
+ 2.30100E+00
+ 2.40100E+00
+ 2.50100E+00
+ 2.60100E+00
+ 2.70100E+00
+ 2.80100E+00
+ 2.90100E+00
+ 3.00100E+00
+ 3.10100E+00
+ 3.20100E+00
+ 3.30100E+00
+ 3.40100E+00
+ 3.50100E+00
+ 3.60100E+00
+ 3.70100E+00
+ 3.80100E+00
+ 3.90100E+00
+ 4.00100E+00
+ 4.10100E+00
+ 4.20100E+00
+ 4.30100E+00
+ 4.40100E+00
+ 4.50100E+00
+ 4.60100E+00
+ 4.70100E+00
+ 4.80100E+00
+
