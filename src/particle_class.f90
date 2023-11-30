@@ -111,7 +111,6 @@ contains
       end select
      end subroutine set_vec
 
-
     subroutine read_particle_data(this)
         implicit none
         class(particles), intent(inout) :: this

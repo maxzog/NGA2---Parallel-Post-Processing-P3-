@@ -1,13 +1,15 @@
-module twopoint_serial
+module twopoint_mpi
     use particle_class
     implicit none
+    include "mpif.h"
+
     private
     
     real(4) :: PI=3.14159265
 
-    public :: serial_stats
+    public :: mpi_stats
 
-    type serial_stats
+    type mpi_stats
       integer :: nb=32
       real(4) :: L=6.2832
       real(4) :: dr
@@ -16,7 +18,10 @@ module twopoint_serial
       real(4) :: DeltaU2
       real(4), allocatable, dimension(:) :: uul, uut, sfl, sft, rdf
       integer, allocatable, dimension(:) :: c
+      integer :: imin, imax, jmin, jmax
+      integer :: comm
     contains
+      procedure :: decomp
       procedure :: compute_uu
       procedure :: compute_sf
       procedure :: compute_rdf
@@ -24,17 +29,17 @@ module twopoint_serial
       procedure :: write_uu
       procedure :: write_sf
       procedure :: write_rdf
-    end type serial_stats
+    end type mpi_stats
     
-    interface serial_stats
+    interface mpi_stats
       procedure :: constructor
-    end interface serial_stats
+    end interface mpi_stats
 
 contains
 
     function constructor(numbins, length) result(self)
       implicit none
-      type(serial_stats) :: self
+      type(mpi_stats) :: self
       integer, optional :: numbins
       real(4), optional :: length
 
@@ -53,17 +58,39 @@ contains
       self%dr=self%rmax / self%nb
     end function constructor
 
+    subroutine decomp(this, length, nproc, rank, s, e)
+      implicit none
+      class(mpi_stats), intent(inout) :: this
+      integer, intent(in) :: nproc, rank, length
+      integer, intent(inout) :: s, e
+      integer :: nlocal, deficit
+
+      nlocal = length / nproc
+      s = rank * nlocal + 1
+      deficit = mod(length, nproc)
+
+      if (rank.lt.deficit) then
+         s = s + rank
+      else
+         s = s + deficit
+      end if
+
+      if (rank.lt.deficit) nlocal = nlocal + 1
+      e = s + nlocal - 1
+      if (e.gt.length.or.rank.eq.nproc-1) e = length
+    end subroutine decomp
+
     subroutine compute_uu(this, parts)
         type(particles), intent(in) :: parts
-        class(serial_stats), intent(inout) :: this
+        class(mpi_stats), intent(inout) :: this
         integer :: i, j, ir
         real(4) :: r(3), rll(3), rt2(3)
 
         !> Reset
         this%c = 0; this%uul=0.0; this%uut=0.0
 
-        do i = 1, parts%npart
-            do j = i, parts%npart
+        do i = this%imin, this%imax
+            do j = this%imin, this%imax
                 call par_perp_u(this, parts%p(i), parts%p(j), rll, rt2)
                 r = parts%p(j)%pos - parts%p(i)%pos
                 ir = floor(norm2(r) / this%dr) + 1
@@ -88,15 +115,15 @@ contains
 
     subroutine compute_sf(this, parts)
       type(particles), intent(in) :: parts
-      class(serial_stats), intent(inout) :: this
+      class(mpi_stats), intent(inout) :: this
       integer :: i, j, ir
       real(4) :: r(3), rll(3), rt2(3)
 
       !> Reset 
       this%c = 0; this%sfl=0.0; this%sft=0.0
 
-      do i = 1, parts%npart
-          do j = i, parts%npart
+      do i = this%imin, this%imax
+         do j = this%imin, this%imax
               call par_perp_u(this, parts%p(i), parts%p(j), rll, rt2)
               r = parts%p(j)%pos - parts%p(i)%pos
               ir = floor(norm2(r) / this%dr) + 1
@@ -123,15 +150,15 @@ contains
 
     subroutine compute_rdf(this, parts)
       type(particles), intent(in) :: parts
-      class(serial_stats), intent(inout) :: this
-      integer :: i, j, ir
+      class(mpi_stats), intent(inout) :: this
+      integer :: i, j, ir, ierr
       real(4) :: V, Vshell, N, rho, r(3)
 
       !> Reset
       this%rdf = 0.0
 
-      do i = 1, parts%npart
-         do j = i, parts%npart
+      do i = this%imin, this%imax
+         do j = this%jmin, this%jmax
                r = get_minr(this, parts%p(i), parts%p(j))
                ir = floor(norm2(r) / this%dr) + 1
                if (ir <= this%nb .and. parts%p(i)%id /= parts%p(j)%id) then 
@@ -139,6 +166,8 @@ contains
                end if
          end do
       end do
+
+      call MPI_ALLREDUCE(this%rdf(:), this%rdf(:), this%nb, MPI_FLOAT, MPI_SUM, this%comm, ierr)
 
       !> Prepare RDF normalization
       V=this%L**3 
@@ -152,7 +181,7 @@ contains
     end subroutine compute_rdf
 
    function get_minr(this, p, q) result(r)
-      type(serial_stats) :: this
+      type(mpi_stats) :: this
       type(part), intent(in) :: p, q
       real(4) :: r(3)
       r = q%pos - p%pos
@@ -171,7 +200,7 @@ contains
 
    subroutine par_perp_u(this, p, q, rll, rt2)
       implicit none
-      type(serial_stats) :: this
+      type(mpi_stats) :: this
       type(part), intent(in) :: p, q
       real(4), intent(out) :: rll(3), rt2(3)
       real(4) :: r(3), rt1(3)
@@ -195,7 +224,7 @@ contains
    !> I/O routines
    subroutine write_uu(this, outfile)
       implicit none
-      class(serial_stats), intent(in) :: this
+      class(mpi_stats), intent(in) :: this
       character(len=*), intent(in) :: outfile
       integer :: i
 
@@ -209,7 +238,7 @@ contains
 
    subroutine write_sf(this, outfile)
       implicit none
-      class(serial_stats), intent(in) :: this
+      class(mpi_stats), intent(in) :: this
       character(len=*), intent(in) :: outfile
       integer :: i
 
@@ -223,7 +252,7 @@ contains
 
    subroutine write_rdf(this, outfile)
       implicit none
-      class(serial_stats), intent(in) :: this
+      class(mpi_stats), intent(in) :: this
       character(len=*), intent(in) :: outfile
       integer :: i
 
@@ -235,5 +264,5 @@ contains
       close(20)
    end subroutine write_rdf
 
-end module twopoint_serial
+end module twopoint_mpi
 
