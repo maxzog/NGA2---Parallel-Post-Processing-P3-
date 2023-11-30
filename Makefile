@@ -7,7 +7,7 @@ OBJ_DIR = ./obj
 BIN_DIR = ./bin
 
 OBJ_FILES = $(addprefix $(OBJ_DIR)/, $(notdir $(patsubst %.f90,%.o,$(wildcard $(SRC_DIR)/*.f90))))
-TEST_DRIVER = $(BIN_DIR)/test_driver
+TEST_DRIVER = $(BIN_DIR)/testing
 
 all: directories $(TEST_DRIVER)
 
