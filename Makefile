@@ -1,6 +1,6 @@
 FC = gfortran    
-FLAGS = -O2
-LD_FLAGS = 
+FLAGS = -O3 -ffast-math 
+LD_FLAGS = -fopenmp 
 SRC_DIR = ./src
 EXAMPLES_DIR = ./examples
 OBJ_DIR = ./obj
@@ -17,7 +17,7 @@ directories:
 	@mkdir -p $(OUT_DIR)
 	@mkdir -p $(BIN_DIR)
 
-$(TEST_DRIVER): $(EXAMPLES_DIR)/temp_driver.f90 $(OBJ_FILES)
+$(TEST_DRIVER): $(EXAMPLES_DIR)/temp_omp.f90 $(OBJ_FILES)
 	$(FC) $(FLAGS) -I$(OBJ_DIR) -o $@ $^ $(LD_FLAGS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
