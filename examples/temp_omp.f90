@@ -15,7 +15,7 @@ program testing
    length = 6.2832
 
    parts = particles(directory="./data/medium_data/",suffix="000051",name="TEST")
-   call omp_set_num_threads(8)
+   call omp_set_num_threads(4)
    call parts%write_particle_data("./outs/test_particle_data.txt")
 
    parts%stat_to_compute=stochastic_velocity
@@ -31,13 +31,13 @@ program testing
     thread_id = omp_get_thread_num()
     print *, 'Hello from thread', thread_id
     !$omp end parallel
-   !call stats%compute_rdf(parts)
-   !call stats%write_rdf("./outs/rdf.txt")
+   call stats%compute_rdf(parts)
+   call stats%write_rdf("./outs/rdf.txt")
 
    call stats%compute_uu(parts)
    call stats%write_uu("./outs/uu.txt")
 
-   !call stats%compute_sf(parts)
-   !call stats%write_sf("./outs/sf.txt")
+   call stats%compute_sf(parts)
+   call stats%write_sf("./outs/sf.txt")
 
 end program testing

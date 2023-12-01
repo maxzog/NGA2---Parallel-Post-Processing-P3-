@@ -53,30 +53,41 @@ contains
     end function constructor
 
 subroutine compute_uu(this, parts)
-        type(particles), intent(in) :: parts
-        class(omp_stats), intent(inout) :: this
-        integer :: i, j, ir
-        real(4) :: r(3), rll(3), rt1(3), rt2(3)
+    type(particles), intent(in) :: parts
+    class(omp_stats), intent(inout) :: this
+    integer :: i, j, ir
+    real(4) :: r(3), rll(3), rt1(3), rt2(3)
+    real(4), dimension(this%nb) :: local_uul, local_uut
+    integer, dimension(this%nb) :: local_c
 
-
-!$omp parallel private(i, j, ir, r, rll, rt2)
     !> Reset
     this%c = 0; this%uul=0.0; this%uut=0.0
 
-    !$omp do reduction(+:this%uul, this%uut, this%c)
+    ! Initialize local arrays
+    local_uul = 0.0
+    local_uut = 0.0
+    local_c = 0
+    !$OMP PARALLEL DO PRIVATE(r, rll, rt1, rt2, ir, i, j) SHARED(parts, this) &
+    !$OMP REDUCTION(+:local_uul, local_uut, local_c)
     do i = 1, parts%npart
-        do j = i+1, parts%npart
+        do j = i, parts%npart
             call par_perp_u(this, parts%p(i), parts%p(j), rll, rt2)
             r = parts%p(j)%pos - parts%p(i)%pos
-            ir = min(floor(norm2(r) / this%dr) + 1,this%nb)
-                this%uul(ir) = this%uul(ir) + dot_product(parts%p(i)%vec, rll) * dot_product(parts%p(j)%vec, rll)
-                this%uut(ir) = this%uut(ir) + dot_product(parts%p(i)%vec, rt2) * dot_product(parts%p(j)%vec, rt2)
-                this%c(ir) = this%c(ir) + 1
+            ir = floor(norm2(r) / this%dr) + 1
+            if (ir <= this%nb .and. parts%p(i)%id /= parts%p(j)%id) then
+                local_uul(ir) = local_uul(ir) + dot_product(parts%p(i)%vec, rll) * dot_product(parts%p(j)%vec, rll)
+                local_uut(ir) = local_uut(ir) + dot_product(parts%p(i)%vec, rt2) * dot_product(parts%p(j)%vec, rt2)
+                local_c(ir) = local_c(ir) + 1
+            end if
         end do
     end do
-    !$omp end do
+    !$OMP END PARALLEL DO
 
-    !$omp do
+    ! Accumulate results from local arrays to the global arrays
+    this%uul = this%uul + local_uul
+    this%uut = this%uut + local_uut
+    this%c = this%c + local_c
+
     do i = 1, this%nb
         !> Prevent division by zero
         if (this%c(i) == 0) then
@@ -86,8 +97,6 @@ subroutine compute_uu(this, parts)
         this%uul(i) = this%uul(i) / this%c(i)
         this%uut(i) = this%uut(i) / this%c(i)
     end do
-    !$omp end do
-!$omp end parallel
 end subroutine compute_uu
 
 subroutine compute_sf(this, parts)
