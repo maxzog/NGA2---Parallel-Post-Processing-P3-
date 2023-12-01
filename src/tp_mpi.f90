@@ -19,7 +19,7 @@ module twopoint_mpi
       real(4), allocatable, dimension(:) :: uul, uut, sfl, sft, rdf
       integer, allocatable, dimension(:) :: c
       integer :: imin, imax, jmin, jmax
-      integer :: comm
+      integer :: comm, nproc
     contains
       procedure :: decomp
       procedure :: compute_uu
@@ -83,22 +83,20 @@ contains
     subroutine compute_uu(this, parts)
         type(particles), intent(in) :: parts
         class(mpi_stats), intent(inout) :: this
-        integer :: i, j, ir
+        integer :: i, j, ir, ierr
         real(4) :: r(3), rll(3), rt2(3)
 
         !> Reset
         this%c = 0; this%uul=0.0; this%uut=0.0
 
         do i = this%imin, this%imax
-            do j = this%imin, this%imax
+            do j = i+1, this%imax
                 call par_perp_u(this, parts%p(i), parts%p(j), rll, rt2)
                 r = parts%p(j)%pos - parts%p(i)%pos
-                ir = floor(norm2(r) / this%dr) + 1
-                if (ir <= this%nb .and. parts%p(i)%id /= parts%p(j)%id) then
-                    this%uul(ir) = this%uul(ir) + dot_product(parts%p(i)%vec, rll) * dot_product(parts%p(j)%vec, rll)
-                    this%uut(ir) = this%uut(ir) + dot_product(parts%p(i)%vec, rt2) * dot_product(parts%p(j)%vec, rt2)
-                    this%c(ir) = this%c(ir) + 1
-                end if
+                ir = MIN(floor(norm2(r) / this%dr) + 1, this%nb)
+                this%uul(ir) = this%uul(ir) + dot_product(parts%p(i)%vec, rll) * dot_product(parts%p(j)%vec, rll)
+                this%uut(ir) = this%uut(ir) + dot_product(parts%p(i)%vec, rt2) * dot_product(parts%p(j)%vec, rt2)
+                this%c(ir) = this%c(ir) + 1
             end do
         end do
 
@@ -111,29 +109,33 @@ contains
             this%uul(i) = this%uul(i) / this%c(i)
             this%uut(i) = this%uut(i) / this%c(i)
         end do
+      
+      call MPI_ALLREDUCE(MPI_IN_PLACE, this%uul(:), this%nb, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+      call MPI_ALLREDUCE(MPI_IN_PLACE, this%uut(:), this%nb, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+      call MPI_ALLREDUCE(MPI_IN_PLACE, this%c(:), this%nb, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierr)
+      this%uul = this%uul / this%nproc
+      this%uut = this%uut / this%nproc
     end subroutine compute_uu
 
     subroutine compute_sf(this, parts)
       type(particles), intent(in) :: parts
       class(mpi_stats), intent(inout) :: this
-      integer :: i, j, ir
+      integer :: i, j, ir, ierr
       real(4) :: r(3), rll(3), rt2(3)
 
       !> Reset 
       this%c = 0; this%sfl=0.0; this%sft=0.0
 
       do i = this%imin, this%imax
-         do j = this%imin, this%imax
+         do j = i+1, this%imax
               call par_perp_u(this, parts%p(i), parts%p(j), rll, rt2)
               r = parts%p(j)%pos - parts%p(i)%pos
-              ir = floor(norm2(r) / this%dr) + 1
-              if (ir <= this%nb .and. parts%p(i)%id /= parts%p(j)%id) then
-                  this%sfl(ir) = this%sfl(ir) + dot_product(parts%p(j)%vec - parts%p(i)%vec, rll) &
-                               & * dot_product(parts%p(j)%vec - parts%p(i)%vec, rll)
-                  this%sft(ir) = this%sft(ir) + dot_product(parts%p(j)%vec - parts%p(i)%vec, rt2) & 
-                               & * dot_product(parts%p(j)%vec - parts%p(i)%vec, rt2)
-                  this%c(ir) = this%c(ir) + 1
-              end if
+              ir = MIN(floor(norm2(r) / this%dr) + 1, this%nb)
+              this%sfl(ir) = this%sfl(ir) + dot_product(parts%p(j)%vec - parts%p(i)%vec, rll) &
+                           & * dot_product(parts%p(j)%vec - parts%p(i)%vec, rll)
+              this%sft(ir) = this%sft(ir) + dot_product(parts%p(j)%vec - parts%p(i)%vec, rt2) & 
+                           & * dot_product(parts%p(j)%vec - parts%p(i)%vec, rt2)
+              this%c(ir) = this%c(ir) + 1
           end do
       end do
 
@@ -146,38 +148,48 @@ contains
           this%sfl(i) = this%sfl(i) / this%c(i)
           this%sft(i) = this%sft(i) / this%c(i)
       end do
+      
+      call MPI_ALLREDUCE(MPI_IN_PLACE, this%sfl(:), this%nb, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+      call MPI_ALLREDUCE(MPI_IN_PLACE, this%sft(:), this%nb, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+      call MPI_ALLREDUCE(MPI_IN_PLACE, this%c(:), this%nb, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierr)
+      this%sfl = this%sfl / this%nproc
+      this%sft = this%sft / this%nproc
     end subroutine compute_sf
 
     subroutine compute_rdf(this, parts)
       type(particles), intent(in) :: parts
       class(mpi_stats), intent(inout) :: this
       integer :: i, j, ir, ierr
-      real(4) :: V, Vshell, N, rho, r(3)
+      real(4) :: V, Vshell, myN, N, rho, r(3)
 
       !> Reset
       this%rdf = 0.0
-
+      myN = 0.0; N = 0.0
+      
       do i = this%imin, this%imax
-         do j = this%jmin, this%jmax
+         do j = i+1, this%imax
                r = get_minr(this, parts%p(i), parts%p(j))
-               ir = floor(norm2(r) / this%dr) + 1
-               if (ir <= this%nb .and. parts%p(i)%id /= parts%p(j)%id) then 
-                  this%rdf(ir) = this%rdf(ir) + 1.0
-               end if
+               ir = MIN(floor(norm2(r) / this%dr) + 1, this%nb)
+               this%rdf(ir) = this%rdf(ir) + 1.0
+               myN = myN + 1.0
          end do
       end do
-
-      call MPI_ALLREDUCE(this%rdf(:), this%rdf(:), this%nb, MPI_FLOAT, MPI_SUM, this%comm, ierr)
+      
+      call MPI_ALLREDUCE(myN, N, 1, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)      
 
       !> Prepare RDF normalization
-      V=this%L**3 
-      N=parts%npart * (parts%npart - 1) / 2
-      rho=N/V
+      V   = this%L**3 
+      N   = (this%imax - this%imin) * (this%imax - this%imin) / 2.0 
+      rho = N / V
 
       do i = 1, this%nb
-         Vshell=1.33333 * PI * ( (this%dr * i)**3 - (this%dr * (i - 1))**3 )
-         this%rdf(i) = this%rdf(i)/(Vshell*rho)
-      end do
+         Vshell= 4.0 / 3.0 * PI * ( (this%dr * i)**3 - (this%dr * (i - 1))**3 )
+         this%rdf(i) = this%rdf(i) / (Vshell*rho)
+      end do 
+      
+      call MPI_ALLREDUCE(MPI_IN_PLACE, this%rdf(:), this%nb, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+      this%rdf = this%rdf / this%nproc
+      
     end subroutine compute_rdf
 
    function get_minr(this, p, q) result(r)
@@ -206,16 +218,7 @@ contains
       real(4) :: r(3), rt1(3)
       integer :: i
 
-      r = q%pos - p%pos
-      do i = 1, 3
-         if (r(i) > 0.5 * this%L) then
-            r(i) = r(i) - this%L
-         end if
-         if (r(i) < -0.5 * this%L) then
-            r(i) = r(i) + this%L
-         end if
-      end do
-
+      r = get_minr(this, p, q)
       rll = r / norm2(r)
       rt1 = cross_product(rll, p%vec) / norm2(cross_product(rll, p%vec))
       rt2 = cross_product(rt1, rll) / norm2(cross_product(rt1, rll))
@@ -255,7 +258,6 @@ contains
       class(mpi_stats), intent(in) :: this
       character(len=*), intent(in) :: outfile
       integer :: i
-
       open(unit=20, file=outfile, status='replace')
       write(20, '(A, F10.5)') 'dr: ', this%dr
       do i = 1, this%nb

@@ -12,10 +12,10 @@ program testing
    real(4) :: length
 
    !> These are the default values for the serial stats class
-   numbins = 32
+   numbins = 128
    length = 6.2832
 
-   parts = particles(directory="./data/small_data/",suffix="000148",name="TEST")
+   parts = particles(directory="./data/medium_data/",suffix="000051",name="TEST")
 
    call parts%write_particle_data("./outs/test_particle_data.txt")
 
@@ -27,20 +27,20 @@ program testing
    !> Initialize MPI
    call MPI_Init(ierr)
    call MPI_Comm_rank(MPI_COMM_WORLD,rank,ierr)
-   call MPI_Comm_size(MPI_COMM_WORLD,nproc,ierr)
+   call MPI_Comm_size(MPI_COMM_WORLD,stats%nproc,ierr)
 
-   call MPI_Cart_create(MPI_COMM_WORLD,1,nproc,.false.,.true.,stats%comm,ierr)
-
-   call stats%decomp(parts%npart, nproc, rank, stats%imin, stats%imax)
-   call stats%decomp(parts%npart, nproc, rank, stats%jmin, stats%jmax)
-
+   call MPI_Cart_create(MPI_COMM_WORLD,1,stats%nproc,.false.,.true.,stats%comm,ierr)
+   call stats%decomp(parts%npart, stats%nproc, rank, stats%imin, stats%imax)
+   call stats%decomp(parts%npart, stats%nproc, rank, stats%jmin, stats%jmax)
+  
    call stats%compute_rdf(parts)
-   if (rank.eq.0) call stats%write_rdf("./outs/rdf.txt")
-
-   ! call stats%compute_uu(parts)
-   ! call stats%write_uu("./outs/uu.txt")
-
-   ! call stats%compute_sf(parts)
-   ! call stats%write_sf("./outs/sf.txt")
+   call stats%compute_uu(parts)
+   call stats%compute_sf(parts)
+   
+   if (rank.eq.0) then
+      call stats%write_rdf("./outs/rdf.txt")
+      call stats%write_sf("./outs/sf.txt")
+      call stats%write_uu("./outs/uu.txt")
+   end if
 
 end program testing

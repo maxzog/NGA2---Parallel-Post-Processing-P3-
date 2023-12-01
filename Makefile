@@ -1,27 +1,24 @@
-FC = gfortran    
-FLAGS = -O2
-LD_FLAGS = 
+FC = mpif90
+FLAGS = -fallow-argument-mismatch -O2
 SRC_DIR = ./src
-EXAMPLES_DIR = ./examples
 OBJ_DIR = ./obj
 BIN_DIR = ./bin
-OUT_DIR = ./outs
+EXAMPLES_DIR = ./examples/
 
-OBJ_FILES = $(addprefix $(OBJ_DIR)/, $(notdir $(patsubst %.f90,%.o,$(wildcard $(SRC_DIR)/*.f90))))
-TEST_DRIVER = $(BIN_DIR)/testing
+MODULE_SOURCES = $(SRC_DIR)/particle_class.f90   
+MODULE_OBJECTS = $(MODULE_SOURCES:$(SRC_DIR)/%.f90=$(OBJ_DIR)/%.o)
 
-all: directories $(TEST_DRIVER)
+SOURCES = $(filter-out $(MODULE_SOURCES), $(wildcard $(SRC_DIR)/*.f90))  
+OBJECTS = $(SOURCES:$(SRC_DIR)/%.f90=$(OBJ_DIR)/%.o)
 
-directories:
-	@mkdir -p $(OBJ_DIR)
-	@mkdir -p $(OUT_DIR)
-	@mkdir -p $(BIN_DIR)
+all: $(BIN_DIR)/program
 
-$(TEST_DRIVER): $(EXAMPLES_DIR)/temp_driver.f90 $(OBJ_FILES)
-	$(FC) $(FLAGS) -I$(OBJ_DIR) -o $@ $^ $(LD_FLAGS)
+$(BIN_DIR)/program: $(EXAMPLES_DIR)/temp_mpi.f90 $(MODULE_OBJECTS) $(OBJECTS)  
+	$(FC) $(FLAGS) -I$(OBJ_DIR) -o $@ $^
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
-	$(FC) $(FLAGS) -J$(OBJ_DIR) -o $@ -c $<
+	$(FC) $(FLAGS) -J$(OBJ_DIR) -c $< -o $@
 
+.SILENT: clean
 clean:
-	@rm -f $(OBJ_DIR)/* $(BIN_DIR)/*
+	$(RM) $(OBJ_DIR)/*.o $(OBJ_DIR)/*.mod $(BIN_DIR)/program
