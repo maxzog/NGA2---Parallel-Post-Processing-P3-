@@ -31,13 +31,13 @@ program testing
     thread_id = omp_get_thread_num()
     print *, 'Hello from thread', thread_id
     !$omp end parallel
-   call stats%compute_rdf(parts)
-   call stats%write_rdf("./outs/rdf.txt")
+   !call stats%compute_rdf(parts)
+   !call stats%write_rdf("./outs/rdf.txt")
 
    call stats%compute_uu(parts)
    call stats%write_uu("./outs/uu.txt")
 
-   call stats%compute_sf(parts)
-   call stats%write_sf("./outs/sf.txt")
+   !call stats%compute_sf(parts)
+   !call stats%write_sf("./outs/sf.txt")
 
 end program testing

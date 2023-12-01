@@ -52,8 +52,6 @@ contains
       self%dr=self%rmax / self%nb
     end function constructor
 
-
-
 subroutine compute_uu(this, parts)
         type(particles), intent(in) :: parts
         class(omp_stats), intent(inout) :: this
@@ -67,15 +65,13 @@ subroutine compute_uu(this, parts)
 
     !$omp do reduction(+:this%uul, this%uut, this%c)
     do i = 1, parts%npart
-        do j = i, parts%npart
+        do j = i+1, parts%npart
             call par_perp_u(this, parts%p(i), parts%p(j), rll, rt2)
             r = parts%p(j)%pos - parts%p(i)%pos
-            ir = floor(norm2(r) / this%dr) + 1
-            if (ir <= this%nb .and. parts%p(i)%id /= parts%p(j)%id) then
+            ir = min(floor(norm2(r) / this%dr) + 1,this%nb)
                 this%uul(ir) = this%uul(ir) + dot_product(parts%p(i)%vec, rll) * dot_product(parts%p(j)%vec, rll)
                 this%uut(ir) = this%uut(ir) + dot_product(parts%p(i)%vec, rt2) * dot_product(parts%p(j)%vec, rt2)
                 this%c(ir) = this%c(ir) + 1
-            end if
         end do
     end do
     !$omp end do
@@ -211,16 +207,7 @@ end function get_minr
       real(4) :: r(3), rt1(3)
       integer :: i
 
-      r = q%pos - p%pos
-      do i = 1, 3
-         if (r(i) > 0.5 * this%L) then
-            r(i) = r(i) - this%L
-         end if
-         if (r(i) < -0.5 * this%L) then
-            r(i) = r(i) + this%L
-         end if
-      end do
-
+      r = get_minr(this,p,q)
       rll = r / norm2(r)
       rt1 = cross_product(rll, p%vec) / norm2(cross_product(rll, p%vec))
       rt2 = cross_product(rt1, rll) / norm2(cross_product(rt1, rll))
