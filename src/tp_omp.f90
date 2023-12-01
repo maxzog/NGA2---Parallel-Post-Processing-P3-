@@ -56,9 +56,13 @@ subroutine compute_uu(this, parts)
     type(particles), intent(in) :: parts
     class(omp_stats), intent(inout) :: this
     integer :: i, j, ir
-    real(4) :: r(3), rll(3), rt1(3), rt2(3)
+    real(4) :: r(3), rll(3), rt2(3)
     real(4), dimension(this%nb) :: local_uul, local_uut
     integer, dimension(this%nb) :: local_c
+    real(4) :: dr_inv
+
+    !> Compute inverse of dr for multiplication instead of division
+    dr_inv = 1.0 / this%dr
 
     !> Reset
     this%c = 0; this%uul=0.0; this%uut=0.0
@@ -67,14 +71,14 @@ subroutine compute_uu(this, parts)
     local_uul = 0.0
     local_uut = 0.0
     local_c = 0
-    !$OMP PARALLEL DO PRIVATE(r, rll, rt1, rt2, ir, i, j) SHARED(parts, this) &
+    !$OMP PARALLEL DO PRIVATE(r, rll, rt2, ir, i, j) SHARED(parts, this, dr_inv) &
     !$OMP REDUCTION(+:local_uul, local_uut, local_c)
-    do i = 1, parts%npart
-        do j = i, parts%npart
+    do i = 1, parts%npart - 1
+        do j = i + 1, parts%npart
             call par_perp_u(this, parts%p(i), parts%p(j), rll, rt2)
             r = parts%p(j)%pos - parts%p(i)%pos
-            ir = floor(norm2(r) / this%dr) + 1
-            if (ir <= this%nb .and. parts%p(i)%id /= parts%p(j)%id) then
+            ir = floor(norm2(r) * dr_inv) + 1
+            if (ir <= this%nb) then
                 local_uul(ir) = local_uul(ir) + dot_product(parts%p(i)%vec, rll) * dot_product(parts%p(j)%vec, rll)
                 local_uut(ir) = local_uut(ir) + dot_product(parts%p(i)%vec, rt2) * dot_product(parts%p(j)%vec, rt2)
                 local_c(ir) = local_c(ir) + 1
@@ -90,101 +94,106 @@ subroutine compute_uu(this, parts)
 
     do i = 1, this%nb
         !> Prevent division by zero
-        if (this%c(i) == 0) then
-            this%c(i) = 1
+        if (this%c(i) > 0) then
+            !> Normalize bins
+            this%uul(i) = this%uul(i) / this%c(i)
+            this%uut(i) = this%uut(i) / this%c(i)
         end if
-        !> Normalize bins
-        this%uul(i) = this%uul(i) / this%c(i)
-        this%uut(i) = this%uut(i) / this%c(i)
     end do
 end subroutine compute_uu
 
+
 subroutine compute_sf(this, parts)
-  type(particles), intent(in) :: parts
-  class(omp_stats), intent(inout) :: this
-  integer :: i, j, ir
-  real(4) :: r(3), rll(3), rt1(3), rt2(3)
-  real(4), dimension(this%nb) :: local_sfl, local_sft
-  integer, dimension(this%nb) :: local_c
+    type(particles), intent(in) :: parts
+    class(omp_stats), intent(inout) :: this
+    integer :: i, j, ir
+    real(4) :: r(3), rll(3), rt2(3), vec_diff(3)
+    real(4), dimension(this%nb) :: local_sfl, local_sft
+    integer, dimension(this%nb) :: local_c
+    real(4) :: dr_inv
 
-  !> Reset 
-  this%c = 0; this%sfl=0.0; this%sft=0.0
+    !> Compute inverse of dr for multiplication instead of division
+    dr_inv = 1.0 / this%dr
 
-  ! Initialize local arrays
-  local_sfl = 0.0
-  local_sft = 0.0
-  local_c = 0
-  !$OMP PARALLEL DO PRIVATE(r, rll, rt1, rt2, ir, i, j) SHARED(parts, this) &
-  !$OMP REDUCTION(+:local_sfl, local_sft, local_c)
-  do i = 1, parts%npart
-      do j = i, parts%npart
-          call par_perp_u(this, parts%p(i), parts%p(j), rll, rt2)
-          r = parts%p(j)%pos - parts%p(i)%pos
-          ir = floor(norm2(r) / this%dr) + 1
-          if (ir <= this%nb .and. parts%p(i)%id /= parts%p(j)%id) then
-              local_sfl(ir) = local_sfl(ir) + dot_product(parts%p(j)%vec - parts%p(i)%vec, rll) &
-                           & * dot_product(parts%p(j)%vec - parts%p(i)%vec, rll)
-              local_sft(ir) = local_sft(ir) + dot_product(parts%p(j)%vec - parts%p(i)%vec, rt2) & 
-                           & * dot_product(parts%p(j)%vec - parts%p(i)%vec, rt2)
-              local_c(ir) = local_c(ir) + 1
-          end if
-      end do
-  end do
-  !$OMP END PARALLEL DO
+    !> Reset
+    this%c = 0; this%sfl=0.0; this%sft=0.0
 
-  ! Accumulate results from local arrays to the global arrays
-  this%sfl = this%sfl + local_sfl
-  this%sft = this%sft + local_sft
-  this%c = this%c + local_c
+    ! Initialize local arrays
+    local_sfl = 0.0
+    local_sft = 0.0
+    local_c = 0
+    !$OMP PARALLEL DO PRIVATE(r, rll, rt2, vec_diff, ir, i, j) SHARED(parts, this, dr_inv) &
+    !$OMP REDUCTION(+:local_sfl, local_sft, local_c)
+    do i = 1, parts%npart - 1
+        do j = i + 1, parts%npart
+            call par_perp_u(this, parts%p(i), parts%p(j), rll, rt2)
+            r = parts%p(j)%pos - parts%p(i)%pos
+            ir = floor(norm2(r) * dr_inv) + 1
+            if (ir <= this%nb) then
+                vec_diff = parts%p(j)%vec - parts%p(i)%vec
+                local_sfl(ir) = local_sfl(ir) + dot_product(vec_diff, rll) * dot_product(vec_diff, rll)
+                local_sft(ir) = local_sft(ir) + dot_product(vec_diff, rt2) * dot_product(vec_diff, rt2)
+                local_c(ir) = local_c(ir) + 1
+            end if
+        end do
+    end do
+    !$OMP END PARALLEL DO
 
-  do i = 1, this%nb
-      !> Prevent division by zero
-      if (this%c(i) == 0) then
-          this%c(i) = 1
-      end if
-      !> Normalize bins
-      this%sfl(i) = this%sfl(i) / this%c(i)
-      this%sft(i) = this%sft(i) / this%c(i)
-  end do
+    ! Accumulate results from local arrays to the global arrays
+    this%sfl = this%sfl + local_sfl
+    this%sft = this%sft + local_sft
+    this%c = this%c + local_c
+
+    do i = 1, this%nb
+        !> Prevent division by zero
+        if (this%c(i) > 0) then
+            !> Normalize bins
+            this%sfl(i) = this%sfl(i) / this%c(i)
+            this%sft(i) = this%sft(i) / this%c(i)
+        end if
+    end do
 end subroutine compute_sf
 
 
 subroutine compute_rdf(this, parts)
-  type(particles), intent(in) :: parts
-  class(omp_stats), intent(inout) :: this
-  integer :: i, j, ir
-  real(4) :: V, Vshell, N, rho, r(3)
-  real(4), dimension(this%nb) :: local_rdf
+    type(particles), intent(in) :: parts
+    class(omp_stats), intent(inout) :: this
+    integer :: i, j, ir
+    real(4) :: V, Vshell, N, rho, r(3), dr_inv
+    real(4), dimension(this%nb) :: local_rdf
 
-  !> Reset
-  this%rdf = 0.0
+    !> Compute inverse of dr for multiplication instead of division
+    dr_inv = 1.0 / this%dr
 
-  ! Initialize local arrays
-  local_rdf = 0.0
-  !$OMP PARALLEL DO PRIVATE(r, ir, i, j) SHARED(parts, this) REDUCTION(+:local_rdf)
-  do i = 1, parts%npart
-     do j = i, parts%npart
-           r = get_minr(this, parts%p(i), parts%p(j))
-           ir = floor(norm2(r) / this%dr) + 1
-           if (ir <= this%nb .and. parts%p(i)%id /= parts%p(j)%id) then 
-              local_rdf(ir) = local_rdf(ir) + 1.0
-           end if
-     end do
-  end do
-  !$OMP END PARALLEL DO
+    !> Reset
+    this%rdf = 0.0
 
-  ! Accumulate results from local arrays to the global arrays
-  this%rdf = this%rdf + local_rdf
+    ! Initialize local arrays
+    local_rdf = 0.0
+    !$OMP PARALLEL DO PRIVATE(r, ir, i, j) SHARED(parts, this, dr_inv) REDUCTION(+:local_rdf)
+    do i = 1, parts%npart - 1
+        do j = i + 1, parts%npart
+            r = get_minr(this, parts%p(i), parts%p(j))
+            ir = floor(norm2(r) * dr_inv) + 1
+            if (ir <= this%nb) then
+                local_rdf(ir) = local_rdf(ir) + 1.0
+            end if
+        end do
+    end do
+    !$OMP END PARALLEL DO
 
-  !> Prepare RDF normalization
-  V=this%L**3 
-  N=parts%npart * (parts%npart - 1) / 2
-  rho=N/V
+    ! Accumulate results from local arrays to the global arrays
+    this%rdf = this%rdf + local_rdf
 
-  do i = 1, this%nb
-     Vshell=1.33333 * PI * ( (this%dr * i)**3 - (this%dr * (i - 1))**3 )
-     this%rdf(i) = this%rdf(i)/(Vshell*rho)
-  end do
+    !> Prepare RDF normalization
+    V = this%L**3
+    N = parts%npart * (parts%npart - 1) / 2
+    rho = N / V
+
+    do i = 1, this%nb
+        Vshell = 1.33333 * PI * ( (this%dr * i)**3 - (this%dr * (i - 1))**3 )
+        this%rdf(i) = this%rdf(i) / (Vshell * rho)
+    end do
 end subroutine compute_rdf
 
 
