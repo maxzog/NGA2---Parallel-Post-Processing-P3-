@@ -1,5 +1,5 @@
 FC = mpif90
-FLAGS = -fallow-argument-mismatch -O2
+FLAGS = -fallow-argument-mismatch -O3 -ffast-math
 SRC_DIR = ./src
 OBJ_DIR = ./obj
 BIN_DIR = ./bin

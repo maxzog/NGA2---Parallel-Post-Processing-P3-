@@ -175,21 +175,20 @@ contains
          end do
       end do
       
-      call MPI_ALLREDUCE(myN, N, 1, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)      
+      !call MPI_ALLREDUCE(myN, N, 1, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)      
 
       !> Prepare RDF normalization
       V   = this%L**3 
-      N   = (this%imax - this%imin) * (this%imax - this%imin) / 2.0 
-      rho = N / V
+      !N   = (this%imax - this%imin) * (this%imax - this%imin) / 2.0 
+      rho = myN / V
 
       do i = 1, this%nb
          Vshell= 4.0 / 3.0 * PI * ( (this%dr * i)**3 - (this%dr * (i - 1))**3 )
          this%rdf(i) = this%rdf(i) / (Vshell*rho)
       end do 
       
-      call MPI_ALLREDUCE(MPI_IN_PLACE, this%rdf(:), this%nb, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
-      this%rdf = this%rdf / this%nproc
-      
+     call MPI_ALLREDUCE(MPI_IN_PLACE, this%rdf(:), this%nb, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+     this%rdf = this%rdf / this%nproc
     end subroutine compute_rdf
 
    function get_minr(this, p, q) result(r)
