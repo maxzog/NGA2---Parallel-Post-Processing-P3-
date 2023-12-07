@@ -1,4 +1,4 @@
-FC = mpif90
+FC = mpif90 #gfortran
 FLAGS = -fallow-argument-mismatch -O2
 SRC_DIR = ./src
 OBJ_DIR = ./obj
@@ -13,7 +13,7 @@ OBJECTS = $(SOURCES:$(SRC_DIR)/%.f90=$(OBJ_DIR)/%.o)
 
 all: $(BIN_DIR)/program
 
-$(BIN_DIR)/program: $(EXAMPLES_DIR)/temp_mpi.f90 $(MODULE_OBJECTS) $(OBJECTS)  
+$(BIN_DIR)/program: $(EXAMPLES_DIR)/temp_mpigrid.f90 $(MODULE_OBJECTS) $(OBJECTS)  
 	$(FC) $(FLAGS) -I$(OBJ_DIR) -o $@ $^
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90

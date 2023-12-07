@@ -11,6 +11,17 @@ module particle_class
     integer, parameter, public :: stochastic_velocity=3
     integer, parameter, public :: total_fluid_velocity=4
 
+    type :: grid
+       integer :: nx, ny, nz  !> Number of cells in each grid direction
+       real(4) :: dx, dy, dz  !> Size of cells in each direction
+       real(4) :: Lx, Ly, Lz  !> Length of grid in ecah direction 
+
+       integer :: no=1 !> Number of neighbor cells to search over
+
+       integer, allocatable, dimension(:,:,:) :: npic
+       integer, allocatable, dimension(:,:,:,:) :: ipic
+    end type grid
+
     type :: part
         integer :: id         !> Particle id number
         integer :: ind(3)     !> Particle cartesian index
@@ -18,7 +29,7 @@ module particle_class
         real(4) :: vel(3)     !> Particle velocity
         real(4) :: fld(3)     !> Fluid velocity 'seen'
         real(4) :: uf(3)      !> Modeled velocity
-        real(4) :: vec(3)      !> Modeled velocity
+        real(4) :: vec(3)     !> Modeled velocity
     end type part
 
     type :: particles
@@ -28,7 +39,12 @@ module particle_class
         character(len=80) :: name="UNNAMED"              !> Name of particle group
         character(len=80) :: dir="UNDEFINED"             !> Location of particle data
         character(len=6)  :: suf="000001"                !> Which time step to load in
+
+        type(grid) :: grid                               !> Cartesian-based particle storage
       contains
+        procedure :: locate_particles
+        procedure :: grid_count
+        procedure :: build_ipic
         procedure :: get_npart             !> Routine to get the number of particles
         procedure :: set_vec               !> Set the quantity to compute
         procedure :: read_particle_data    !> Routine to load in particle ensight data
@@ -41,9 +57,13 @@ module particle_class
 
 contains
 
-     function constructor(directory, suffix, name) result(self)
+     function constructor(directory, suffix, name, Lx, Ly, Lz, nx, ny, nz, nover) result(self)
         implicit none
         type(particles) :: self
+        integer, intent(in) :: nx
+        integer, optional, intent(in) :: ny, nz, nover
+        real(4), intent(in) :: Lx
+        real(4), optional, intent(in) :: Ly, Lz
         character(len=*), intent(in) :: directory
         character(len=*), intent(in) :: suffix
         character(len=*), optional :: name
@@ -59,7 +79,94 @@ contains
 
         call self%read_particle_data()
 
+        construct_grid: block
+
+         self%grid%nx = nx
+         if (present(ny)) then
+            self%grid%ny = ny
+         else
+            self%grid%ny = nx
+         end if
+         if (present(nz)) then
+            self%grid%nz = nz
+         else
+            self%grid%nz = nx
+         end if
+
+         self%grid%Lx = Lx
+         if (present(Ly)) then
+            self%grid%Ly = Ly
+         else
+            self%grid%Ly = Lx
+         end if
+         if (present(Lz)) then
+            self%grid%Lz = Lz
+         else
+            self%grid%Lz = Lx
+         end if
+
+         self%grid%no = nover
+
+         self%grid%dx = self%grid%Lx / self%grid%nx
+         self%grid%dy = self%grid%Ly / self%grid%ny
+         self%grid%dz = self%grid%Lz / self%grid%nz
+
+         !> Allocate npic
+         allocate(self%grid%npic(self%grid%nx,self%grid%ny,self%grid%nz)); self%grid%npic=0
+         !> Locate particles on the grid (get index)
+         call self%locate_particles()
+         !> Count up particles per grid cell
+         call self%grid_count()
+         !> Allocate according to the max number of particles that will appear in one grid cell
+         call self%build_ipic()
+        end block construct_grid
      end function constructor
+
+     subroutine build_ipic(this)
+      implicit none
+      class(particles), intent(inout) :: this
+      integer :: i, ip, jp, kp
+
+      allocate(this%grid%ipic(maxval(this%grid%npic),this%grid%nx,this%grid%ny,this%grid%nz))
+      this%grid%npic = 0
+      do i = 1, this%npart
+         ip = this%p(i)%ind(1)
+         jp = this%p(i)%ind(2)
+         kp = this%p(i)%ind(3)
+         this%grid%npic(ip,jp,kp) = this%grid%npic(ip,jp,kp) + 1
+         this%grid%ipic(this%grid%npic(ip,jp,kp),ip,jp,kp) = i
+      end do
+     end subroutine build_ipic
+
+     subroutine grid_count(this)
+      implicit none
+      class(particles), intent(inout) :: this
+      integer :: i, ip, jp, kp
+
+      do i = 1, this%npart
+         ip = this%p(i)%ind(1)
+         jp = this%p(i)%ind(2)
+         kp = this%p(i)%ind(3)
+         this%grid%npic(ip,jp,kp) = this%grid%npic(ip,jp,kp) + 1
+      end do
+     end subroutine grid_count
+
+     subroutine locate_particles(this)
+         implicit none
+         class(particles), intent(inout) :: this
+         type(part) :: myp
+         integer :: i
+         do i = 1, this%npart
+            myp = this%p(i)
+            myp%ind(1) = INT(FLOOR(myp%pos(1) / this%grid%dx)) + 1
+            myp%ind(2) = INT(FLOOR(myp%pos(2) / this%grid%dy)) + 1
+            myp%ind(3) = INT(FLOOR(myp%pos(3) / this%grid%dz)) + 1
+            if (myp%ind(1).gt.this%grid%nx) call exit(1)
+            if (myp%ind(2).gt.this%grid%ny) call exit(1)
+            if (myp%ind(3).gt.this%grid%nz) call exit(1)
+            this%p(i) = myp
+         end do
+     end subroutine locate_particles
 
      !> Read particle.* ensight file for number of particles
      subroutine get_npart(this)
