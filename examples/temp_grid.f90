@@ -21,12 +21,11 @@ program testing
    stats = grid_stats(numbins, length)
 
    call stats%compute_rdf(parts)
-   call stats%write_rdf("./outs/rdf.txt")
-
    call stats%compute_uu(parts)
-   call stats%write_uu("./outs/uu.txt")
-
    call stats%compute_sf(parts)
+   
+   call stats%write_rdf("./outs/rdf.txt")
    call stats%write_sf("./outs/sf.txt")
+   call stats%write_uu("./outs/uu.txt")
 
 end program testing

@@ -16,8 +16,8 @@ program testing
    numbins = 512
    length = 6.2832
 
-   parts = particles(directory="./data/100000_particles_data/SDE/particles/",suffix="000002",name="TEST")
-   !parts = particles(directory="./data/medium_data/",suffix="000051",name="TEST")
+   !parts = particles(directory="./data/100000_particles_data/SDE/particles/",suffix="000002",name="TEST")
+   parts = particles(directory="./data/medium_data/",suffix="000051",name="TEST")
    !parts = particles(directory="./data/ners_data/",suffix="000049",name="TEST")
 
    parts%stat_to_compute=stochastic_velocity
@@ -41,12 +41,12 @@ program testing
    call stats%compute_sf(parts)
  
    CALL SYSTEM_CLOCK(finish) !get finish time
- 
+
    !Convert time to seconds and print
    elapsed_time=REAL(finish-start,8)/REAL(count_rate,8)
-   WRITE(*,'(a,f9.3,a)') "    compute took", elapsed_time, " seconds"
    
    if (rank.eq.0) then
+      WRITE(*,'(a,f9.3,a)') "    compute took", elapsed_time, " seconds"
       call stats%write_rdf("./outs/rdf.txt")
       call stats%write_sf("./outs/sf.txt")
       call stats%write_uu("./outs/uu.txt")

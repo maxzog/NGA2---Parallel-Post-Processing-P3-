@@ -40,4 +40,5 @@ program testing
       call stats%write_sf("./outs/sf.txt") 
    end if
 
+   print *, "YOU MADE IT OUT"
 end program testing

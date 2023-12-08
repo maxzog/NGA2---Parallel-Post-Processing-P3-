@@ -12,9 +12,9 @@ module particle_class
     integer, parameter, public :: total_fluid_velocity=4
 
     type :: grid
-       integer :: nx, ny, nz  !> Number of cells in each grid direction
-       real(4) :: dx, dy, dz  !> Size of cells in each direction
-       real(4) :: Lx, Ly, Lz  !> Length of grid in ecah direction 
+       integer :: nx=1, ny=1, nz=1        !> Number of cells in each grid direction
+       real(4) :: dx, dy, dz              !> Size of cells in each direction
+       real(4) :: Lx=1.0, Ly=1.0, Lz=1.0  !> Length of grid in ecah direction 
 
        integer :: no=1 !> Number of neighbor cells to search over
 
@@ -60,10 +60,8 @@ contains
      function constructor(directory, suffix, name, Lx, Ly, Lz, nx, ny, nz, nover) result(self)
         implicit none
         type(particles) :: self
-        integer, intent(in) :: nx
-        integer, optional, intent(in) :: ny, nz, nover
-        real(4), intent(in) :: Lx
-        real(4), optional, intent(in) :: Ly, Lz
+        integer, optional, intent(in) :: nx, ny, nz, nover
+        real(4), optional, intent(in) :: Lx, Ly, Lz
         character(len=*), intent(in) :: directory
         character(len=*), intent(in) :: suffix
         character(len=*), optional :: name
@@ -81,31 +79,32 @@ contains
 
         construct_grid: block
 
-         self%grid%nx = nx
+         
+         if (present(nx)) self%grid%nx = nx
          if (present(ny)) then
             self%grid%ny = ny
          else
-            self%grid%ny = nx
+            self%grid%ny = self%grid%nx
          end if
          if (present(nz)) then
             self%grid%nz = nz
          else
-            self%grid%nz = nx
+            self%grid%nz = self%grid%nx
          end if
 
-         self%grid%Lx = Lx
+         if (present(Lx)) self%grid%Lx = Lx
          if (present(Ly)) then
             self%grid%Ly = Ly
          else
-            self%grid%Ly = Lx
+            self%grid%Ly = self%grid%Lx
          end if
          if (present(Lz)) then
             self%grid%Lz = Lz
          else
-            self%grid%Lz = Lx
+            self%grid%Lz = self%grid%Lx
          end if
 
-         self%grid%no = nover
+         if (present(nover)) self%grid%no = nover
 
          self%grid%dx = self%grid%Lx / self%grid%nx
          self%grid%dy = self%grid%Ly / self%grid%ny
