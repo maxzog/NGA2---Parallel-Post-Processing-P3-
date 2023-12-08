@@ -19,7 +19,7 @@ directories:
 
 mpi: directories $(BIN_DIR)/program_mpi
 
-$(BIN_DIR)/program_mpi: $(EXAMPLES_DIR)/temp_mpi.f90 $(MODULE_OBJECTS) $(OBJECTS)  
+$(BIN_DIR)/program_mpi: $(EXAMPLES_DIR)/example_mpi.f90 $(MODULE_OBJECTS) $(OBJECTS)  
 	$(FC) $(FLAGS) -I$(OBJ_DIR) -o $@ $^
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
@@ -27,7 +27,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
 
 mpigrid: directories $(BIN_DIR)/program_mpigrid
 
-$(BIN_DIR)/program_mpigrid: $(EXAMPLES_DIR)/temp_mpigrid.f90 $(MODULE_OBJECTS) $(OBJECTS)  
+$(BIN_DIR)/program_mpigrid: $(EXAMPLES_DIR)/example_mpigrid.f90 $(MODULE_OBJECTS) $(OBJECTS)  
 	$(FC) $(FLAGS) -I$(OBJ_DIR) -o $@ $^
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
@@ -35,7 +35,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
 
 grid: directories $(BIN_DIR)/program_grid
 
-$(BIN_DIR)/program_grid: $(EXAMPLES_DIR)/temp_grid.f90 $(MODULE_OBJECTS) $(OBJECTS)  
+$(BIN_DIR)/program_grid: $(EXAMPLES_DIR)/example_grid.f90 $(MODULE_OBJECTS) $(OBJECTS)  
 	$(FC) $(FLAGS) -I$(OBJ_DIR) -o $@ $^
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
@@ -43,7 +43,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
 
 omp: directories $(BIN_DIR)/program_omp
 
-$(BIN_DIR)/program_omp: $(EXAMPLES_DIR)/temp_omp.f90 $(MODULE_OBJECTS) $(OBJECTS)  
+$(BIN_DIR)/program_omp: $(EXAMPLES_DIR)/example_omp.f90 $(MODULE_OBJECTS) $(OBJECTS)  
 	$(FC) $(FLAGS) -I$(OBJ_DIR) -o $@ $^
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90

@@ -6,8 +6,9 @@ program testing
 
    type(particles) :: parts
    type(omp_stats) :: stats
-   integer :: numbins
+   integer :: numbins, start, finish, count_rate
    real(4) :: length
+   real(8) :: elapsed_time
    integer :: i, nthreads, thread_id
 
    !> These are the default values for the serial stats class
@@ -24,20 +25,26 @@ program testing
    stats = omp_stats(numbins, length)
 
    ! Test parallel execution and print thread IDs
-    nthreads = omp_get_max_threads()
-    print *, 'Running with', nthreads, 'threads'
-
-    !$omp parallel private(thread_id)
-    thread_id = omp_get_thread_num()
-    print *, 'Hello from thread', thread_id
-    !$omp end parallel
+   nthreads = omp_get_max_threads()
+   !$omp parallel private(thread_id)
+   thread_id = omp_get_thread_num()
+   !$omp end parallel
+   
+   CALL SYSTEM_CLOCK(start,count_rate) !get start time
+ 
    call stats%compute_rdf(parts)
-   call stats%write_rdf("./outs/rdf.txt")
-
    call stats%compute_uu(parts)
-   call stats%write_uu("./outs/uu.txt")
-
    call stats%compute_sf(parts)
+ 
+   CALL SYSTEM_CLOCK(finish) !get finish time
+
+   !Convert time to seconds and print
+   elapsed_time=REAL(finish-start,8)/REAL(count_rate,8)
+   
+   WRITE(*,'(a,f9.3,a)') "    compute took", elapsed_time, " seconds"
+   
+   call stats%write_uu("./outs/uu.txt")
+   call stats%write_rdf("./outs/rdf.txt")
    call stats%write_sf("./outs/sf.txt")
 
 end program testing

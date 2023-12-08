@@ -8,8 +8,8 @@ program testing
 
    type(particles) :: parts
    type(mpi_stats) :: stats
-   integer :: numbins, start, finish, count_rate
    real(4) :: length
+   integer :: numbins, start, finish, count_rate
    real(8) :: elapsed_time
 
    !> These are the default values for the serial stats class
