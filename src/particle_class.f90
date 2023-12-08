@@ -161,9 +161,9 @@ contains
             myp%ind(1) = INT(FLOOR(myp%pos(1) / this%grid%dx)) + 1
             myp%ind(2) = INT(FLOOR(myp%pos(2) / this%grid%dy)) + 1
             myp%ind(3) = INT(FLOOR(myp%pos(3) / this%grid%dz)) + 1
-            if (myp%ind(1).gt.this%grid%nx) myp%ind(1) = this%grid.nx
-            if (myp%ind(2).gt.this%grid%ny) myp%ind(2) = this%grid.ny
-            if (myp%ind(3).gt.this%grid%nz) myp%ind(3) = this%grid.nz
+            if (myp%ind(1).gt.this%grid%nx) myp%ind(1) = this%grid%nx
+            if (myp%ind(2).gt.this%grid%ny) myp%ind(2) = this%grid%ny
+            if (myp%ind(3).gt.this%grid%nz) myp%ind(3) = this%grid%nz
             if (myp%ind(1).lt.1) myp%ind(1) = 1
             if (myp%ind(2).lt.1) myp%ind(2) = 1
             if (myp%ind(3).lt.1) myp%ind(3) = 1
