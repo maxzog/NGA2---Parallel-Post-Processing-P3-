@@ -49,6 +49,14 @@ $(BIN_DIR)/program_omp: $(EXAMPLES_DIR)/example_omp.f90 $(MODULE_OBJECTS) $(OBJE
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
 	$(FC) $(FLAGS) -J$(OBJ_DIR) -c $< -o $@
 
+tt: directories $(BIN_DIR)/program_twotime
+
+$(BIN_DIR)/program_twotime: $(EXAMPLES_DIR)/twotime_mpi.f90 $(MODULE_OBJECTS) $(OBJECTS)  
+	$(FC) $(FLAGS) -I$(OBJ_DIR) -o $@ $^
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
+	$(FC) $(FLAGS) -J$(OBJ_DIR) -c $< -o $@
+
 .SILENT: clean
 clean:
-	$(RM) $(OBJ_DIR)/*.o $(OBJ_DIR)/*.mod $(BIN_DIR)/program
+	$(RM) $(OBJ_DIR)/*.o $(OBJ_DIR)/*.mod $(BIN_DIR)/program*
