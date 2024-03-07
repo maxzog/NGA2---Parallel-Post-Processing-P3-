@@ -57,6 +57,22 @@ $(BIN_DIR)/program_twotime: $(EXAMPLES_DIR)/twotime_mpi.f90 $(MODULE_OBJECTS) $(
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
 	$(FC) $(FLAGS) -J$(OBJ_DIR) -c $< -o $@
 
+dtime: directories $(BIN_DIR)/program_dtime
+
+$(BIN_DIR)/program_dtime: $(EXAMPLES_DIR)/D_time.f90 $(MODULE_OBJECTS) $(OBJECTS)  
+	$(FC) $(FLAGS) -I$(OBJ_DIR) -o $@ $^
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
+	$(FC) $(FLAGS) -J$(OBJ_DIR) -c $< -o $@
+
+mtime: directories $(BIN_DIR)/program_mtime
+
+$(BIN_DIR)/program_mtime: $(EXAMPLES_DIR)/multitime.f90 $(MODULE_OBJECTS) $(OBJECTS)  
+	$(FC) $(FLAGS) -I$(OBJ_DIR) -o $@ $^
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
+	$(FC) $(FLAGS) -J$(OBJ_DIR) -c $< -o $@
+
 .SILENT: clean
 clean:
 	$(RM) $(OBJ_DIR)/*.o $(OBJ_DIR)/*.mod $(BIN_DIR)/program*

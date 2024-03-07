@@ -21,7 +21,7 @@ module twopoint_mpi
       integer, allocatable, dimension(:) :: c
       integer :: imin, imax, jmin, jmax
       integer :: nstep = 1, step = 1
-      integer :: comm, nproc
+      integer :: comm, nproc, rank
    contains
       procedure :: decomp
       procedure :: compute_var
@@ -231,8 +231,9 @@ contains
       type(particles), intent(in) :: partsn
       type(particles), intent(in) :: partsm
       integer :: i, ierr
-      real(4) :: meanm
+      real(4) :: meanm, tmpac
 
+      meanm = 0.0
       !> Compute mean (isotropic)
       do i = this%imin, this%imax
          meanm = meanm + sum(partsm%p(i)%vec)/3
@@ -240,13 +241,14 @@ contains
       call MPI_ALLREDUCE(MPI_IN_PLACE, meanm, 1, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
       meanm = meanm/partsm%npart
 
+      tmpac=0.0
       ! Compute two-time variance
       do i = this%imin, this%imax
-         this%ac(this%step) = this%ac(this%step) + dot_product(partsn%p(i)%vec - this%mean, partsm%p(i)%vec - meanm)/3
+         tmpac = tmpac + dot_product(partsn%p(i)%vec - this%mean, partsm%p(i)%vec - meanm)/3
       end do
-
-      call MPI_ALLREDUCE(MPI_IN_PLACE, this%ac, this%nstep, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
-      this%ac = this%ac/partsm%npart
+      call MPI_ALLREDUCE(MPI_IN_PLACE, tmpac, 1, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+!      print *, tmpac / partsm%npart
+      this%ac(this%step) = tmpac/partsm%npart
    end subroutine compute_ac
 
    function get_minr(this, p, q) result(r)
@@ -331,7 +333,7 @@ contains
 
       open (unit=20, file=outfile, status='replace')
       write (20, '(A, F10.5)') 'dt: ', this%dt
-      do i = 1, this%nb
+      do i = 1, this%nstep
          write (20, '(I5, 2F15.8)') i, this%ac(i)
       end do
       close (20)

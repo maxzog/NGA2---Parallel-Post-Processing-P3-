@@ -14,32 +14,31 @@ program testing
    real(8) :: elapsed_time
    character(len=6) :: strn
 
-   !> Initialize MPI
-   call MPI_Init(ierr)
-   call MPI_Comm_rank(MPI_COMM_WORLD,rank,ierr)
-   call MPI_Comm_size(MPI_COMM_WORLD,stats%nproc,ierr)
 
    !> These are the default values for the serial stats class
    numbins = 512
    length = 6.2832
-   nstep = 46
+   nstep = 150
    dt = 0.01
-   stepi = 47
+   stepi = 500
    stepf = stepi - nstep
 
    call intToPaddedString(stepi, strn)
-   partsn = particles(directory="/Users/maxzog/DATA/stk1dns/ensight/HIT/particles/",suffix=strn,name="TEST")
-
-   print *, "NPART :: ", partsn%npart
+   partsn = particles(directory="/home/maxzog/NGA2/examples/SDE_tester/ensight/SDE/particles/"&
+                     &,suffix=strn,name="TEST")
 
    partsn%stat_to_compute=stochastic_velocity
    call partsn%set_vec()
    call partsn%sort_particles(1,partsn%npart)
 
    stats = mpi_stats(numbins, length, nstep, dt)
+   !> Initialize MPI
+   call MPI_Init(ierr)
+   call MPI_Comm_rank(MPI_COMM_WORLD,stats%rank,ierr)
+   call MPI_Comm_size(MPI_COMM_WORLD,stats%nproc,ierr)
    call MPI_Cart_create(MPI_COMM_WORLD,1,stats%nproc,.false.,.true.,stats%comm,ierr)
-   call stats%decomp(partsn%npart, stats%nproc, rank, stats%imin, stats%imax)
-   call stats%decomp(partsn%npart, stats%nproc, rank, stats%jmin, stats%jmax)
+   call stats%decomp(partsn%npart, stats%nproc, stats%rank, stats%imin, stats%imax)
+   call stats%decomp(partsn%npart, stats%nproc, stats%rank, stats%jmin, stats%jmax)
 
    call stats%compute_var(partsn)
    
@@ -55,8 +54,9 @@ program testing
          type(particles) :: partsm
          character(len=6) :: strm
 
-         call intToPaddedString(stepi-stats%step, strm)
-         partsm = particles(directory="/Users/maxzog/DATA/stk1dns/ensight/HIT/particles/",suffix=strm,name="TEST")
+         call intToPaddedString(stepi-stats%step+1, strm)
+         partsm = particles(directory="/home/maxzog/NGA2/examples/SDE_tester/ensight/SDE/particles/"&
+                           &,suffix=strm,name="TEST")
          partsm%stat_to_compute=stochastic_velocity
          call partsm%set_vec()
          call partsm%sort_particles(1,partsm%npart)
@@ -76,16 +76,16 @@ program testing
 
    call MPI_Barrier(MPI_COMM_WORLD, ierr)
 
-   if (rank.eq.0) then
+   if (stats%rank.eq.0) then
       WRITE(*,'(a,f9.3,a)') "    compute took", elapsed_time, " seconds"
-      call stats%write_ac("./outs/ac.txt")
+      call stats%write_ac("./outs/ac_crw.txt")
    end if
 
    call partsn%deallocate_particles()
 
    call MPI_Barrier(MPI_COMM_WORLD, ierr)
 
-   print *, "Compute done on rank ", rank
+   print *, "Compute done on rank ", stats%rank
 
    call MPI_Finalize(ierr)
    contains
