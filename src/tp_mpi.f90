@@ -20,7 +20,7 @@ module twopoint_mpi
       real(4) :: bw = 0.5
       real(4), allocatable, dimension(:) :: uul, uut, sfl, sft, rdf, ac
       integer, allocatable, dimension(:) :: c
-      real(4), allocatable, dimension(:) :: drift
+      real(4), allocatable, dimension(:) :: drift, covar
       integer, allocatable, dimension(:) :: driftc
       integer :: imin, imax, jmin, jmax
       integer :: nstep = 1, step = 1
@@ -37,11 +37,13 @@ module twopoint_mpi
       procedure :: compute_relative_dispersion
 
       procedure :: infer_drift
+      procedure :: infer_covar
 
       procedure :: write_uu
       procedure :: write_sf
       procedure :: write_ac
       procedure :: write_rdf
+      procedure :: write_covar
       procedure :: write_drift
    end type mpi_stats
 
@@ -66,13 +68,14 @@ contains
       if (present(nstep)) self%nstep = nstep
       if (present(dt)) self%dt = dt
 
-      allocate (self%uul(1:self%nb)); self%uul = 0.0
-      allocate (self%uut(1:self%nb)); self%uut = 0.0
-      allocate (self%sfl(1:self%nb)); self%sfl = 0.0
-      allocate (self%sft(1:self%nb)); self%sft = 0.0
-      allocate (self%rdf(1:self%nb)); self%rdf = 0.0
-      allocate (self%ac(1:self%nstep)); self%ac = 0.0
-      allocate (self%drift(1:self%ubins)); self%drift = 0.0
+      allocate (self%uul(1:self%nb)); self%uul   = 0.0
+      allocate (self%uut(1:self%nb)); self%uut   = 0.0
+      allocate (self%sfl(1:self%nb)); self%sfl   = 0.0
+      allocate (self%sft(1:self%nb)); self%sft   = 0.0
+      allocate (self%rdf(1:self%nb)); self%rdf   = 0.0
+      allocate (self%covar(1:self%nb)); self%covar = 0.0
+      allocate (self%ac(1:self%nstep));  self%ac = 0.0
+      allocate (self%drift( 1:self%ubins)); self%drift  = 0.0
       allocate (self%driftc(1:self%ubins)); self%driftc = 0
 
       allocate (self%c(1:self%nb)); self%c = 0
@@ -300,6 +303,35 @@ contains
       end do
    end subroutine infer_drift
 
+   subroutine infer_covar(this, partsn, partsm)
+      type(particles), intent(in) :: partsn,partsm
+      class(mpi_stats), intent(inout) :: this
+      real(4) :: umin, umax
+      real(4), dimension(3) :: dui,duj,r
+      integer :: i, j, ir, ierr
+
+      this%c=0
+      do i = this%imin, this%imax
+         do j = i + 1, this%imax
+            dui = partsn%p(i)%vec - partsm%p(i)%vec
+            duj = partsn%p(j)%vec - partsm%p(j)%vec
+            r   = partsm%p(j)%pos - partsm%p(i)%pos
+            ir  = MIN(floor(norm2(r)/this%dr) + 1, this%nb)
+            this%covar(ir) = this%covar(ir) + sum(dui*duj)/3.0
+            this%c(ir) = this%c(ir) + 1
+         end do
+      end do
+
+      do i = 1, this%nb
+         if (this%c(i).gt.0) then
+            this%covar(i) = this%covar(i) / this%c(i) / this%dt 
+         end if
+      end do
+
+      call MPI_ALLREDUCE(MPI_IN_PLACE, this%covar(:), this%nb, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+      this%covar = this%covar/this%nproc
+   end subroutine infer_covar
+
    subroutine compute_ac(this, partsn, partsm)
       implicit none
       class(mpi_stats), intent(inout) :: this
@@ -398,6 +430,19 @@ contains
       end do
       close (20)
    end subroutine write_rdf
+
+   subroutine write_covar(this, outfile)
+      implicit none
+      class(mpi_stats), intent(in) :: this
+      character(len=*), intent(in) :: outfile
+      integer :: i
+      open (unit=20, file=outfile, status='replace')
+      write (20, '(A, F10.5)') 'dr: ', this%dr
+      do i = 1, this%nb
+         write (20, '(I5, F15.8)') i, this%covar(i)
+      end do
+      close (20)
+   end subroutine write_covar
 
    subroutine write_ac(this, outfile)
       implicit none

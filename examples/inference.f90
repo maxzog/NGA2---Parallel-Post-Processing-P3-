@@ -58,7 +58,8 @@ program testing
       call partsm%sort_particles(1,partsm%npart)
 
       call stats%infer_drift(partsn, partsm)
-      call partsm%deallocate_particles()
+      call stats%infer_covar(partsn, partsm)
+!      call partsm%deallocate_particles()
    end block load_and_compute
 
    call MPI_Barrier(MPI_COMM_WORLD, ierr)
@@ -73,23 +74,25 @@ program testing
    if (stats%rank.eq.0) then
       WRITE(*,'(a,f9.3,a)') "    compute took", elapsed_time, " seconds"
       call stats%write_drift("./outs/drift_128.txt")
+      call stats%write_covar("./outs/covar_128.txt")
    end if
 
-   call partsn%deallocate_particles()
+!   call partsn%deallocate_particles()
 
    call MPI_Barrier(MPI_COMM_WORLD, ierr)
 
    print *, "Compute done on rank ", stats%rank
 
    call MPI_Finalize(ierr)
+
    contains
 
-   subroutine intToPaddedString(num, paddedString)
-       implicit none
-       integer, intent(in) :: num
-       character(len=6), intent(out) :: paddedString
-   
-       write(paddedString, '(I6.6)') num
-   end subroutine intToPaddedString
+    subroutine intToPaddedString(num, paddedString)
+        implicit none
+        integer, intent(in) :: num
+        character(len=6), intent(out) :: paddedString
+    
+        write(paddedString, '(I6.6)') num
+    end subroutine intToPaddedString
 
 end program testing
