@@ -22,6 +22,8 @@ module twopoint_mpi
       integer, allocatable, dimension(:) :: c
       real(4), allocatable, dimension(:) :: drift, covar
       integer, allocatable, dimension(:) :: driftc
+      real(4), allocatable, dimension(:,:) :: reldrift
+      integer, allocatable, dimension(:,:) :: reldriftc
       integer :: imin, imax, jmin, jmax
       integer :: nstep = 1, step = 1
       integer :: comm, nproc, rank
@@ -38,6 +40,7 @@ module twopoint_mpi
 
       procedure :: infer_drift
       procedure :: infer_covar
+      procedure :: infer_relative_drift
 
       procedure :: write_uu
       procedure :: write_sf
@@ -45,6 +48,7 @@ module twopoint_mpi
       procedure :: write_rdf
       procedure :: write_covar
       procedure :: write_drift
+      procedure :: write_relative_drift
    end type mpi_stats
 
    interface mpi_stats
@@ -77,6 +81,8 @@ contains
       allocate (self%ac(1:self%nstep));  self%ac = 0.0
       allocate (self%drift( 1:self%ubins)); self%drift  = 0.0
       allocate (self%driftc(1:self%ubins)); self%driftc = 0
+      allocate (self%reldrift(1:self%ubins,1:self%nb)); self%reldrift=0.0
+      allocate (self%reldriftc(1:self%ubins,1:self%nb)); self%reldriftc=0
 
       allocate (self%c(1:self%nb)); self%c = 0
 
@@ -332,6 +338,63 @@ contains
       this%covar = this%covar/this%nproc
    end subroutine infer_covar
 
+   subroutine infer_relative_drift(this, partsn, partsm)
+      type(particles), intent(in) :: partsn,partsm
+      class(mpi_stats), intent(inout) :: this
+      real(4) :: umax, dur, rn, durn, durm
+      real(4), dimension(3) :: du, r, rh
+      integer :: i, j, ir, iu, ierr
+   
+      !> Get maximum rel vel for data storage
+      umax=0.0
+      do i = this%imin, this%imax
+         do j = i + 1, this%imax
+            du  = partsm%p(j)%vec - partsm%p(i)%vec
+            r   = partsm%p(j)%pos - partsm%p(i)%pos
+            rn  = norm2(r)
+            rh  = r / rn
+            dur = dot_product(du, rh)
+            if (abs(dur).gt.umax) umax = abs(dur)
+         end do
+      end do
+      call MPI_ALLREDUCE(MPI_IN_PLACE, umax, 1, MPI_REAL, MPI_MAX, MPI_COMM_WORLD, ierr)
+      this%bw=2.0*umax/this%ubins
+
+      this%c=0
+      do i = this%imin, this%imax
+         do j = i + 1, this%imax
+            du = partsn%p(j)%vec - partsn%p(i)%vec
+            r  = partsn%p(j)%pos - partsn%p(i)%pos
+            rn = norm2(r)
+            rh = r / rn
+            durn = dot_product(du, rh)
+            
+            du = partsm%p(j)%vec - partsm%p(i)%vec
+            r  = partsm%p(j)%pos - partsm%p(i)%pos
+            rn = norm2(r)
+            rh = r / rn
+            durm = dot_product(du, rh)
+
+            r  = partsm%p(j)%pos - partsm%p(i)%pos
+            ir = MIN(floor(norm2(r)/this%dr) + 1, this%nb)
+            iu = ceiling((durm + umax)/this%bw)
+            this%reldrift(iu,ir) = this%reldrift(iu,ir) + durn-durm
+            this%reldriftc(iu,ir) = this%reldriftc(iu,ir) + 1
+         end do
+      end do
+
+      do i = 1, this%ubins
+         do j = 1, this%nb
+            if (this%reldriftc(i,j).gt.0) then
+               this%reldrift(i,j) = this%reldrift(i,j) / this%reldriftc(i,j) / this%dt 
+            end if
+         end do
+      end do
+
+      call MPI_ALLREDUCE(MPI_IN_PLACE, this%reldrift(:,:), this%nb*this%ubins, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+      this%reldrift = this%reldrift/this%nproc
+   end subroutine infer_relative_drift
+
    subroutine compute_ac(this, partsn, partsm)
       implicit none
       class(mpi_stats), intent(inout) :: this
@@ -471,5 +534,29 @@ contains
       end do
       close (20)
    end subroutine write_drift
+   
+   subroutine write_relative_drift(this, outfile)
+      implicit none
+      class(mpi_stats), intent(in) :: this
+      character(len=*), intent(in) :: outfile
+      integer :: i, j
+
+      open (unit=20, file=outfile, status='replace')
+      write (20, '(A, F10.5)') 'du: ', this%bw
+      write (20, '(A, F10.5)') 'dr: ', this%dr
+      ! Iterate through the 2D array and write to file
+      do i = 1, this%ubins
+          ! Begin writing a new line for the new row
+          write(20, '(F10.6)', advance='no') this%reldrift(i, 1)
+          do j = 2, this%nb
+              write(20, '(A)', advance='no') ' '
+              write(20, '(F10.6)', advance='no') this%reldrift(i, j)
+          end do
+          ! End the line after the row has been written
+          write(20, *)
+      end do
+      close (20)
+   end subroutine write_relative_drift
+
 end module twopoint_mpi
 
