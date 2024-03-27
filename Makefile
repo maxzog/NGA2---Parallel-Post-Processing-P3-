@@ -73,6 +73,13 @@ $(BIN_DIR)/program_mtime: $(EXAMPLES_DIR)/multitime.f90 $(MODULE_OBJECTS) $(OBJE
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
 	$(FC) $(FLAGS) -J$(OBJ_DIR) -c $< -o $@
 
+infer: directories $(BIN_DIR)/program_infer
+
+$(BIN_DIR)/program_infer: $(EXAMPLES_DIR)/inference.f90 $(MODULE_OBJECTS) $(OBJECTS)  
+	$(FC) $(FLAGS) -I$(OBJ_DIR) -o $@ $^
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.f90
+	$(FC) $(FLAGS) -J$(OBJ_DIR) -c $< -o $@
 .SILENT: clean
 clean:
 	$(RM) $(OBJ_DIR)/*.o $(OBJ_DIR)/*.mod $(BIN_DIR)/program*

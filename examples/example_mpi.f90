@@ -21,7 +21,7 @@ program testing
 !   parts = particles(directory="/home/maxzog/NGA2/examples/SDE_tester/ensight_tracer_scrw_nodrft/SDE/particles/"&
 !                              &,suffix="000448",name="TEST",Lx=length, nx=128)
    parts = particles(directory="/home/maxzog/NGA2/examples/SDE_tester/ensight/SDE/particles/"&
-                              &,suffix="000500",name="TEST",Lx=length, nx=64)
+                              &,suffix="000007",name="TEST",Lx=length, nx=64, has_uf=.true.)
 !   parts = particles(directory="./data/ners_data/",suffix="000049",name="TEST",Lx=length,nx=64)
 !   print *, parts%npart
    parts%stat_to_compute=stochastic_velocity
@@ -51,31 +51,31 @@ program testing
 
    call MPI_Barrier(MPI_COMM_WORLD, ierr)
    
-   D_statistic: block
-      integer :: i, j, k
-      real(4) :: lambda, s, sp
-
-      lambda = real(parts%npart) / (parts%grid%nx*parts%grid%ny*parts%grid%nz)
-      s = sqrt(lambda)
-      sp = 0.0
-      do k = 1, parts%grid%nz
-         do j = 1, parts%grid%ny
-            do i = 1, parts%grid%nx
-               sp = sp + (parts%grid%npic(i,j,k) - lambda)**2
-            end do
-         end do
-      end do
-      sp = sp / (parts%grid%nx*parts%grid%ny*parts%grid%nz)  
-      sp = sqrt(sp)
-      D = (sp - s) / lambda
-   end block D_statistic
+!!   D_statistic: block
+!!      integer :: i, j, k
+!!      real(4) :: lambda, s, sp
+!!
+!!      lambda = real(parts%npart) / (parts%grid%nx*parts%grid%ny*parts%grid%nz)
+!!      s = sqrt(lambda)
+!!      sp = 0.0
+!!      do k = 1, parts%grid%nz
+!!         do j = 1, parts%grid%ny
+!!            do i = 1, parts%grid%nx
+!!               sp = sp + (parts%grid%npic(i,j,k) - lambda)**2
+!!            end do
+!!         end do
+!!      end do
+!!      sp = sp / (parts%grid%nx*parts%grid%ny*parts%grid%nz)  
+!!      sp = sqrt(sp)
+!!      D = (sp - s) / lambda
+!!   end block D_statistic
 
    if (rank.eq.0) then
       print *, "D = ", D
       WRITE(*,'(a,f9.3,a)') "    compute took", elapsed_time, " seconds"
 !!      call stats%write_rdf("./outs/rdf.txt")
-      call stats%write_sf("./outs/sf_crw.txt")
-      call stats%write_uu("./outs/uu_crw.txt")
+      call stats%write_sf("./outs/sf_scrw_fulldrift2pi.txt")
+      call stats%write_uu("./outs/uu_scrw_fulldrift2pi.txt")
    end if
 
    call parts%deallocate_particles()

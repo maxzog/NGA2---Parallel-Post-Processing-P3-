@@ -12,14 +12,16 @@ module particle_class
    integer, parameter, public :: total_fluid_velocity = 4
 
    type :: grid
-      integer :: nx = 1, ny = 1, nz = 1        !> Number of cells in each grid direction
-      real(4) :: dx, dy, dz              !> Size of cells in each direction
-      real(4) :: Lx = 1.0, Ly = 1.0, Lz = 1.0  !> Length of grid in ecah direction
+      integer :: nx = 1, ny = 1, nz = 1         !> Number of cells in each grid direction
+      real(4) :: dx, dy, dz                     !> Size of cells in each direction
+      real(4) :: Lx = 1.0, Ly = 1.0, Lz = 1.0   !> Length of grid in ecah direction
 
-      integer :: no = 1 !> Number of neighbor cells to search over
+      integer :: no = 1                         !> Number of neighbor cells to search over
 
-      integer, allocatable, dimension(:, :, :) :: npic
-      integer, allocatable, dimension(:, :, :, :) :: ipic
+      integer, allocatable, dimension(:, :, :) :: npic      !> Number of particles per grid cell
+      integer, allocatable, dimension(:, :, :, :) :: ipic   !> Particle indices in each grid cell
+
+      real(4) :: D                              !> Number density
    end type grid
 
    type :: part
@@ -34,17 +36,19 @@ module particle_class
 
    type :: particles
       integer :: stat_to_compute = stochastic_velocity   !> What two-point quantity to compute
-      integer :: npart                                 !> Number of particles
-      type(part), allocatable, dimension(:) :: p       !> Vector containing particles
+      integer :: npart                                   !> Number of particles
+      type(part), allocatable, dimension(:) :: p         !> Vector containing particles
       character(len=80) :: name = "UNNAMED"              !> Name of particle group
       character(len=80) :: dir = "UNDEFINED"             !> Location of particle data
       character(len=6)  :: suf = "000001"                !> Which time step to load in
 
-      type(grid) :: grid                               !> Cartesian-based particle storage
+      type(grid) :: grid                                 !> Cartesian-based particle storage
+      logical :: has_uf=.true.                           !> Did NGA output fluid vel fluctuations
    contains
       procedure :: locate_particles
       procedure :: grid_count
       procedure :: build_ipic
+      procedure :: grid_density
       procedure :: get_npart             !> Routine to get the number of particles
       procedure :: set_vec               !> Set the quantity to compute
       procedure :: sort_particles        !> Sort particle vector by particle id
@@ -59,17 +63,20 @@ module particle_class
 
 contains
 
-   function constructor(directory, suffix, name, Lx, Ly, Lz, nx, ny, nz, nover) result(self)
+   function constructor(directory, suffix, name, Lx, Ly, Lz, nx, ny, nz, nover, has_uf) result(self)
       implicit none
       type(particles) :: self
       integer, optional, intent(in) :: nx, ny, nz, nover
       real(4), optional, intent(in) :: Lx, Ly, Lz
+      logical, optional, intent(in) :: has_uf
       character(len=*), intent(in) :: directory
       character(len=*), intent(in) :: suffix
       character(len=*), optional :: name
 
       self%dir = trim(adjustl(directory))
       self%suf = trim(adjustl(suffix))
+
+      if (present(has_uf)) self%has_uf=has_uf
 
       if (present(name)) self%name = trim(adjustl(name))
 
@@ -119,6 +126,8 @@ contains
          call self%grid_count()
          !> Allocate according to the max number of particles that will appear in one grid cell
          call self%build_ipic()
+         !> Init grid density
+         self%grid%D=0.0
       end block construct_grid
    end function constructor
 
@@ -150,6 +159,28 @@ contains
          this%grid%npic(ip, jp, kp) = this%grid%npic(ip, jp, kp) + 1
       end do
    end subroutine grid_count
+
+   subroutine grid_density(this)
+      implicit none
+      class(particles), intent(inout) :: this
+      integer :: i, j, k
+      real(4) :: lambda, s, sp
+
+      lambda = real(this%npart)/real(this%grid%nx*this%grid%ny*this%grid%nz)
+      sp = sqrt(lambda)
+
+      do k = 1, this%grid%nz
+         do j = 1, this%grid%ny
+            do i = 1, this%grid%nx
+               s = s + (this%grid%npic(i,j,k) - lambda)**2               
+            end do
+         end do
+      end do
+      s = s/real(this%grid%nx*this%grid%ny*this%grid%nz)
+      s = sqrt(real(s))
+      this%grid%D = (s - sp)/lambda
+      print *, "D  :: ", this%grid%D
+   end subroutine grid_density
 
    subroutine locate_particles(this)
       implicit none
@@ -276,21 +307,25 @@ contains
       open (unit=12, file=particle_file, form='unformatted', access='stream', status='old', iostat=io_stat)
       open (unit=13, file=vel_file, form='unformatted', access='stream', status='old', iostat=io_stat)
       open (unit=14, file=fld_file, form='unformatted', access='stream', status='old', iostat=io_stat)
-      open (unit=15, file=uf_file, form='unformatted', access='stream', status='old', iostat=io_stat)
+      if (this%has_uf) open (unit=15, file=uf_file, form='unformatted', access='stream', status='old', iostat=io_stat)
 
       !> Skip header (position file has larger header)
       read (11) buf
       read (12) larger_buf
       read (13) buf
       read (14) buf
-      read (15) buf
+      if (this%has_uf) read (15) buf
 
       do i = 1, this%npart
          read (11) idtmp; this%p(i)%id = int(idtmp)
          read (12) this%p(i)%pos
          read (13) this%p(i)%vel
          read (14) this%p(i)%fld
-         read (15) this%p(i)%uf
+         if (this%has_uf) then
+            read (15) this%p(i)%uf
+         else
+            this%p(i)%uf=[0.0,0.0,0.0]
+         end if
 
          !> Set default stat to uf
          this%p(i)%vec = this%p(i)%uf
@@ -300,7 +335,7 @@ contains
       close (12)
       close (13)
       close (14)
-      close (15)
+      if (this%has_uf) close (15)
    end subroutine read_particle_data
 
    subroutine write_particle_data(this, output_file)

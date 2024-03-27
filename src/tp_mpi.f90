@@ -17,11 +17,15 @@ module twopoint_mpi
       real(4) :: mean = 0.0
       real(4) :: var = 0.0
       real(4) :: dt = 0.0
+      real(4) :: bw = 0.5
       real(4), allocatable, dimension(:) :: uul, uut, sfl, sft, rdf, ac
       integer, allocatable, dimension(:) :: c
+      real(4), allocatable, dimension(:) :: drift
+      integer, allocatable, dimension(:) :: driftc
       integer :: imin, imax, jmin, jmax
       integer :: nstep = 1, step = 1
       integer :: comm, nproc, rank
+      integer :: ubins
    contains
       procedure :: decomp
       procedure :: compute_var
@@ -29,11 +33,16 @@ module twopoint_mpi
       procedure :: compute_sf
       procedure :: compute_rdf
       procedure :: compute_ac
+      procedure :: compute_dispersion
+      procedure :: compute_relative_dispersion
+
+      procedure :: infer_drift
 
       procedure :: write_uu
       procedure :: write_sf
       procedure :: write_ac
       procedure :: write_rdf
+      procedure :: write_drift
    end type mpi_stats
 
    interface mpi_stats
@@ -42,15 +51,17 @@ module twopoint_mpi
 
 contains
 
-   function constructor(numbins, length, nstep, dt) result(self)
+   function constructor(numbins, length, nstep, dt, ubins) result(self)
       implicit none
       type(mpi_stats) :: self
       integer, optional :: numbins
+      integer, optional :: ubins
       integer, optional :: nstep
       real(4), optional :: length
       real(4), optional :: dt
 
       if (present(numbins)) self%nb = numbins
+      if (present(ubins)) self%ubins = ubins
       if (present(length)) self%L = length
       if (present(nstep)) self%nstep = nstep
       if (present(dt)) self%dt = dt
@@ -61,6 +72,8 @@ contains
       allocate (self%sft(1:self%nb)); self%sft = 0.0
       allocate (self%rdf(1:self%nb)); self%rdf = 0.0
       allocate (self%ac(1:self%nstep)); self%ac = 0.0
+      allocate (self%drift(1:self%ubins)); self%drift = 0.0
+      allocate (self%driftc(1:self%ubins)); self%driftc = 0
 
       allocate (self%c(1:self%nb)); self%c = 0
 
@@ -128,7 +141,8 @@ contains
             call par_perp_u(this, parts%p(i), parts%p(j), rll, rt2)
             r = parts%p(j)%pos - parts%p(i)%pos
             ir = MIN(floor(norm2(r)/this%dr) + 1, this%nb)
-            this%uul(ir) = this%uul(ir) + dot_product(parts%p(i)%vec, rll)*dot_product(parts%p(j)%vec, rll)
+            !! this%uul(ir) = this%uul(ir) + dot_product(parts%p(i)%vec, rll)*dot_product(parts%p(j)%vec, rll)
+            this%uul(ir) = this%uul(ir) + dot_product(parts%p(i)%vec, parts%p(j)%vec) / 3.0
             this%uut(ir) = this%uut(ir) + dot_product(parts%p(i)%vec, rt2)*dot_product(parts%p(j)%vec, rt2)
             this%c(ir) = this%c(ir) + 1
          end do
@@ -225,6 +239,67 @@ contains
       this%rdf = this%rdf/this%nproc
    end subroutine compute_rdf
 
+   subroutine compute_dispersion(this, partsn, partsm)
+      type(particles), intent(in) :: partsn,partsm
+      class(mpi_stats), intent(inout) :: this
+      integer :: i, ierr
+      real(4) :: tmpdis=0.0
+      real(4) :: npi
+
+      do i = 1, partsn%npart
+         tmpdis=tmpdis+sum((partsm%p(i)%pos - partsn%p(i)%pos)**2)             
+      end do
+
+      !call MPI_ALLREDUCE(MPI_IN_PLACE, tmpdis, 1, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+      this%ac(this%step)=tmpdis/partsn%npart
+   end subroutine compute_dispersion
+
+   subroutine compute_relative_dispersion(this, partsn, partsm)
+      type(particles), intent(in) :: partsn,partsm
+      class(mpi_stats), intent(inout) :: this
+      integer :: i, j, ierr
+      real(4) :: tmpdis=0.0
+
+      do i = this%imin, this%imax
+         do j = i + 1, this%imax
+            tmpdis=tmpdis+sum(((partsm%p(j)%pos-partsm%p(i)%pos)-(partsn%p(j)%pos-partsn%p(i)%pos))**2)               
+         end do
+      end do
+
+      tmpdis=tmpdis/((this%imax-this%imin)*(this%imax-this%imin+1.0))*2.0
+      call MPI_ALLREDUCE(MPI_IN_PLACE, tmpdis, 1, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+      this%ac(this%step)=tmpdis/this%nproc
+   end subroutine compute_relative_dispersion
+
+   subroutine infer_drift(this, partsn, partsm)
+      type(particles), intent(in) :: partsn,partsm
+      class(mpi_stats), intent(inout) :: this
+      real(4) :: umin, umax
+      real(4), dimension(3) :: du
+      integer :: i, j, ierr, ind
+
+      umax=0.0
+      do i = 1, partsn%npart
+         umax=maxval(abs(partsm%p(i)%vec)) 
+      end do
+      this%bw=2.0*umax/this%ubins
+      do i = 1, partsn%npart
+         du = partsn%p(i)%vec - partsm%p(i)%vec
+         do j = 1, 3
+            ind = ceiling((partsm%p(i)%vec(j)+umax) / this%bw)
+            if (ind.gt.this%ubins.or.ind.lt.0) cycle
+            this%drift(ind) = this%drift(ind) + du(j)/this%dt
+            this%driftc(ind) = this%driftc(ind) + 1
+         end do
+      end do
+
+      do i = 1, this%ubins
+         if (this%driftc(i).gt.0) then
+            this%drift(i) = this%drift(i) / this%driftc(i) 
+         end if
+      end do
+   end subroutine infer_drift
+
    subroutine compute_ac(this, partsn, partsm)
       implicit none
       class(mpi_stats), intent(inout) :: this
@@ -247,7 +322,6 @@ contains
          tmpac = tmpac + dot_product(partsn%p(i)%vec - this%mean, partsm%p(i)%vec - meanm)/3
       end do
       call MPI_ALLREDUCE(MPI_IN_PLACE, tmpac, 1, MPI_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
-!      print *, tmpac / partsm%npart
       this%ac(this%step) = tmpac/partsm%npart
    end subroutine compute_ac
 
@@ -338,5 +412,19 @@ contains
       end do
       close (20)
    end subroutine write_ac
+
+   subroutine write_drift(this, outfile)
+      implicit none
+      class(mpi_stats), intent(in) :: this
+      character(len=*), intent(in) :: outfile
+      integer :: i
+
+      open (unit=20, file=outfile, status='replace')
+      write (20, '(A, F10.5)') 'du: ', this%bw
+      do i = 1, this%ubins
+         write (20, '(I5, 2F15.8)') i, this%drift(i)
+      end do
+      close (20)
+   end subroutine write_drift
 end module twopoint_mpi
 
