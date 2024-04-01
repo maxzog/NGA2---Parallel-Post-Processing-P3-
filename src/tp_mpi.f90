@@ -271,7 +271,7 @@ contains
 
       do i = this%imin, this%imax
          do j = i + 1, this%imax
-            tmpdis=tmpdis+sum(((partsm%p(j)%pos-partsm%p(i)%pos)-(partsn%p(j)%pos-partsn%p(i)%pos))**2)               
+            tmpdis=tmpdis+sum(((partsm%p(j)%pos-partsm%p(i)%pos)-(partsn%p(j)%pos-partsn%p(i)%pos))**2)  
          end do
       end do
 

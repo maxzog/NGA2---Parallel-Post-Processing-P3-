@@ -16,12 +16,12 @@ program testing
 
 
    !> These are the default values for the serial stats class
-   numbins = 512
+   numbins = 128
    N       = 64
    length  = 6.2832
    dt      = 0.1254
-   stepi   = 11
-   stepf   = 10
+   stepi   = 20
+   stepf   = 19
    ubins   = 32
 
    call intToPaddedString(stepi, strn)
@@ -58,7 +58,8 @@ program testing
       call partsm%sort_particles(1,partsm%npart)
 
       call stats%infer_relative_drift(partsn, partsm)
-!      call stats%infer_covar(partsn, partsm)
+      call stats%infer_drift(partsn, partsm)
+      call stats%infer_covar(partsn, partsm)
       call partsm%deallocate_particles()
    end block load_and_compute
 

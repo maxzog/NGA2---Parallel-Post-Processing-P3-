@@ -20,11 +20,11 @@ program testing
 !   parts = particles(directory="./data/small_data/",suffix="000148",name="TEST",Lx=length,nx=64)
 !   parts = particles(directory="/home/maxzog/NGA2/examples/SDE_tester/ensight_tracer_scrw_nodrft/SDE/particles/"&
 !                              &,suffix="000448",name="TEST",Lx=length, nx=128)
-   parts = particles(directory="/home/maxzog/NGA2/examples/SDE_tester/ensight/SDE/particles/"&
-                              &,suffix="000007",name="TEST",Lx=length, nx=64, has_uf=.true.)
+   parts = particles(directory="/home/maxzog/NGA2/examples/hit/ensight/HIT/particles/"&
+                              &,suffix="000020",name="TEST",Lx=length, nx=64, has_uf=.false.)
 !   parts = particles(directory="./data/ners_data/",suffix="000049",name="TEST",Lx=length,nx=64)
 !   print *, parts%npart
-   parts%stat_to_compute=stochastic_velocity
+   parts%stat_to_compute=fluid_velocity
    call parts%set_vec()
    call parts%sort_particles(1,parts%npart)
 
@@ -42,7 +42,9 @@ program testing
  
 !!   call stats%compute_rdf(parts)
    call stats%compute_uu(parts)
+   print *, "Done with uu"
    call stats%compute_sf(parts)
+   print *, "Done with sf"
  
    CALL SYSTEM_CLOCK(finish) !get finish time
 
@@ -74,8 +76,8 @@ program testing
       print *, "D = ", D
       WRITE(*,'(a,f9.3,a)') "    compute took", elapsed_time, " seconds"
 !!      call stats%write_rdf("./outs/rdf.txt")
-      call stats%write_sf("./outs/sf_scrw_fulldrift2pi.txt")
-      call stats%write_uu("./outs/uu_scrw_fulldrift2pi.txt")
+      call stats%write_sf("./outs/sf_128.txt")
+      call stats%write_uu("./outs/uu_128.txt")
    end if
 
    call parts%deallocate_particles()
