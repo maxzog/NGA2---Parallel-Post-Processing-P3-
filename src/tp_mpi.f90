@@ -78,11 +78,11 @@ contains
       allocate (self%sft(1:self%nb)); self%sft   = 0.0
       allocate (self%rdf(1:self%nb)); self%rdf   = 0.0
       allocate (self%covar(1:self%nb)); self%covar = 0.0
-      allocate (self%ac(1:self%nstep));  self%ac = 0.0
-      allocate (self%drift( 1:self%ubins)); self%drift  = 0.0
-      allocate (self%driftc(1:self%ubins)); self%driftc = 0
-      allocate (self%reldrift(1:self%ubins,1:self%nb)); self%reldrift=0.0
-      allocate (self%reldriftc(1:self%ubins,1:self%nb)); self%reldriftc=0
+     ! allocate (self%ac(1:self%nstep));  self%ac = 0.0
+     ! allocate (self%drift( 1:self%ubins)); self%drift  = 0.0
+     ! allocate (self%driftc(1:self%ubins)); self%driftc = 0
+     ! allocate (self%reldrift(1:self%ubins,1:self%nb)); self%reldrift=0.0
+     ! allocate (self%reldriftc(1:self%ubins,1:self%nb)); self%reldriftc=0
 
       allocate (self%c(1:self%nb)); self%c = 0
 
@@ -146,7 +146,7 @@ contains
       this%c = 0; this%uul = 0.0; this%uut = 0.0
 
       do i = this%imin, this%imax
-         do j = i + 1, this%imax
+         do j = i, this%imax
             call par_perp_u(this, parts%p(i), parts%p(j), rll, rt2)
             r = parts%p(j)%pos - parts%p(i)%pos
             ir = MIN(floor(norm2(r)/this%dr) + 1, this%nb)

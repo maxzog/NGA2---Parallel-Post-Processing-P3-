@@ -16,19 +16,19 @@ program testing
 
 
    !> These are the default values for the serial stats class
-   numbins = 128
+   numbins = 512
    N       = 64
    length  = 6.2832
-   dt      = 0.1254
-   stepi   = 20
-   stepf   = 19
+   dt      = 0.05489
+   stepi   = 2
+   stepf   = 1
    ubins   = 32
 
    call intToPaddedString(stepi, strn)
-   partsn = particles(directory="/home/maxzog/NGA2/examples/hit/ensight/HIT/particles/"&
-                     &,suffix=strn,name="TEST",Lx=length,nx=N,has_uf=.false.)
+   partsn = particles(directory="/home/maxzog/filtered_hit_stk1/delta128/"&
+                     &,suffix=strn,name="TEST",Lx=length,nx=N,has_uf=.true.)
 
-   partsn%stat_to_compute=fluid_velocity
+   partsn%stat_to_compute=stochastic_velocity
    call partsn%set_vec()
    call partsn%sort_particles(1,partsn%npart)
 
@@ -51,14 +51,14 @@ program testing
       character(len=6) :: strm
 
       call intToPaddedString(stepf, strm)
-      partsm = particles(directory="/home/maxzog/NGA2/examples/hit/ensight/HIT/particles/"&
-                        &,suffix=strm,name="TEST",Lx=length,nx=N,has_uf=.false.)
-      partsm%stat_to_compute=fluid_velocity
+      partsm = particles(directory="/home/maxzog/filtered_hit_stk1/delta128/"&
+                        &,suffix=strm,name="TEST",Lx=length,nx=N,has_uf=.true.)
+      partsm%stat_to_compute=stochastic_velocity
       call partsm%set_vec()
       call partsm%sort_particles(1,partsm%npart)
 
-      call stats%infer_relative_drift(partsn, partsm)
-      call stats%infer_drift(partsn, partsm)
+!!      call stats%infer_relative_drift(partsn, partsm)
+!!      call stats%infer_drift(partsn, partsm)
       call stats%infer_covar(partsn, partsm)
       call partsm%deallocate_particles()
    end block load_and_compute
@@ -74,9 +74,9 @@ program testing
 
    if (stats%rank.eq.0) then
       WRITE(*,'(a,f9.3,a)') "    compute took", elapsed_time, " seconds"
-      call stats%write_drift("./outs/drift_128.txt")
-      call stats%write_relative_drift("./outs/rel_drift_128.txt")
-      call stats%write_covar("./outs/covar_128.txt")
+!!      call stats%write_drift("./outs/drift_128.txt")
+!!      call stats%write_relative_drift("./outs/rel_drift_128.txt")
+      call stats%write_covar("./outs/stk1/covar_128_sgs.txt")
    end if
 
    call partsn%deallocate_particles()
