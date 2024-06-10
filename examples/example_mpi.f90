@@ -17,14 +17,10 @@ program testing
    numbins = 512
    length = 6.2832
 
-!   parts = particles(directory="./data/small_data/",suffix="000148",name="TEST",Lx=length,nx=64)
-!   parts = particles(directory="/home/maxzog/NGA2/examples/SDE_tester/ensight_tracer_scrw_nodrft/SDE/particles/"&
-!                              &,suffix="000448",name="TEST",Lx=length, nx=128)
-!   parts = particles(directory="/home/maxzog/NGA2/examples/hit_les/ensight/HIT/particles/"&
-!                              &,suffix="000040",name="TEST",Lx=length, nx=64, has_uf=.true.)
-   parts = particles(directory="/home/maxzog/filtered_hit_small/delta128/"&
-                              &,suffix="000002",name="TEST",Lx=length, nx=64, has_uf=.true.)
-!   parts = particles(directory="./data/ners_data/",suffix="000049",name="TEST",Lx=length,nx=64)
+   parts = particles(directory="/home/maxzog/NGA2/examples/SDE_tester/ensight/SDE/particles/"&
+                              &,suffix="000023",name="TEST",Lx=length, nx=64, has_uf=.true.)
+   ! parts = particles(directory="/home/maxzog/iso1024data/jhtdb_particles/dns/"&
+   !                            &,suffix="000001",name="TEST",Lx=length, nx=64, has_uf=.true.)
    parts%stat_to_compute=stochastic_velocity
    call parts%set_vec()
    call parts%sort_particles(1,parts%npart)
@@ -41,7 +37,6 @@ program testing
  
    CALL SYSTEM_CLOCK(start,count_rate) !get start time
  
-!!   call stats%compute_rdf(parts)
    call stats%compute_uu(parts)
    call stats%compute_sf(parts)
  
@@ -74,9 +69,8 @@ program testing
    if (rank.eq.0) then
       print *, "D = ", D
       WRITE(*,'(a,f9.3,a)') "    compute took", elapsed_time, " seconds"
-!!      call stats%write_rdf("./outs/rdf.txt")
-      call stats%write_sf("./outs/sf_128_sgs.txt")
-      call stats%write_uu("./outs/uu_128_sgs.txt")
+      call stats%write_sf("./outs/sf_rho.txt")
+      call stats%write_uu("./outs/uu_rho.txt")
    end if
 
    call parts%deallocate_particles()

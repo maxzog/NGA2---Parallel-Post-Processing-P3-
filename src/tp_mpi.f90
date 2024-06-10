@@ -140,19 +140,20 @@ contains
       type(particles), intent(in) :: parts
       class(mpi_stats), intent(inout) :: this
       integer :: i, j, ir, ierr
-      real(4) :: r(3), rll(3), rt2(3)
+      real(4) :: r(3), rll(3), rt1(3), rt2(3)
 
       !> Reset
       this%c = 0; this%uul = 0.0; this%uut = 0.0
 
       do i = this%imin, this%imax
          do j = i, this%imax
-            call par_perp_u(this, parts%p(i), parts%p(j), rll, rt2)
+            call par_perp_u(this, parts%p(i), parts%p(j), rll, rt1, rt2)
             r = parts%p(j)%pos - parts%p(i)%pos
             ir = MIN(floor(norm2(r)/this%dr) + 1, this%nb)
-            !! this%uul(ir) = this%uul(ir) + dot_product(parts%p(i)%vec, rll)*dot_product(parts%p(j)%vec, rll)
-            this%uul(ir) = this%uul(ir) + dot_product(parts%p(i)%vec, parts%p(j)%vec) / 3.0
-            this%uut(ir) = this%uut(ir) + dot_product(parts%p(i)%vec, rt2)*dot_product(parts%p(j)%vec, rt2)
+            this%uul(ir) = this%uul(ir) + dot_product(parts%p(i)%vec, rll)*dot_product(parts%p(j)%vec, rll)
+            ! this%uul(ir) = this%uul(ir) + dot_product(parts%p(i)%vec, parts%p(j)%vec) / 3.0
+            this%uut(ir) = this%uut(ir) + 0.5 * dot_product(parts%p(i)%vec, rt2)*dot_product(parts%p(j)%vec, rt2)
+            this%uut(ir) = this%uut(ir) + 0.5 * dot_product(parts%p(i)%vec, rt1)*dot_product(parts%p(j)%vec, rt1)
             this%c(ir) = this%c(ir) + 1
          end do
       end do
@@ -178,21 +179,47 @@ contains
       type(particles), intent(in) :: parts
       class(mpi_stats), intent(inout) :: this
       integer :: i, j, ir, ierr
-      real(4) :: r(3), rll(3), rt2(3)
+      integer :: ix, iy, iz
+      real(4) :: r(3), rll(3), rt1(3), rt2(3)
 
       !> Reset
       this%c = 0; this%sfl = 0.0; this%sft = 0.0
 
       do i = this%imin, this%imax
          do j = i + 1, this%imax
-            call par_perp_u(this, parts%p(i), parts%p(j), rll, rt2)
+            call par_perp_u(this, parts%p(i), parts%p(j), rll, rt1, rt2)
             r = parts%p(j)%pos - parts%p(i)%pos
             ir = MIN(floor(norm2(r)/this%dr) + 1, this%nb)
+            
             this%sfl(ir) = this%sfl(ir) + dot_product(parts%p(j)%vec - parts%p(i)%vec, rll) &
                           & *dot_product(parts%p(j)%vec - parts%p(i)%vec, rll)
-            this%sft(ir) = this%sft(ir) + dot_product(parts%p(j)%vec - parts%p(i)%vec, rt2) &
+            this%sft(ir) = this%sft(ir) + 0.5 * dot_product(parts%p(j)%vec - parts%p(i)%vec, rt1) &
+                          & *dot_product(parts%p(j)%vec - parts%p(i)%vec, rt1)
+            this%sft(ir) = this%sft(ir) + 0.5 * dot_product(parts%p(j)%vec - parts%p(i)%vec, rt2) &
                           & *dot_product(parts%p(j)%vec - parts%p(i)%vec, rt2)
             this%c(ir) = this%c(ir) + 1
+            !!! Get separation
+            !!r = parts%p(j)%pos - parts%p(i)%pos
+            !!ix = MIN(floor(abs(r(1))/this%dr) + 1, this%nb)
+            !!iy = MIN(floor(abs(r(2))/this%dr) + 1, this%nb)
+            !!iz = MIN(floor(abs(r(3))/this%dr) + 1, this%nb)
+            !!! Longitudinal components
+            !!this%sfl(ix) = this%sfl(ix) + (parts%p(j)%vec(1) - parts%p(i)%vec(1))**2
+            !!this%sfl(iy) = this%sfl(iy) + (parts%p(j)%vec(2) - parts%p(i)%vec(2))**2
+            !!this%sfl(iz) = this%sfl(iz) + (parts%p(j)%vec(3) - parts%p(i)%vec(3))**2
+            !!! Transverse - x
+            !!this%sft(ix) = this%sft(ix) + (parts%p(j)%vec(2) - parts%p(i)%vec(2))**2
+            !!this%sft(ix) = this%sft(ix) + (parts%p(j)%vec(3) - parts%p(i)%vec(3))**2
+            !!! Transverse - y
+            !!this%sft(iy) = this%sft(iy) + (parts%p(j)%vec(1) - parts%p(i)%vec(1))**2
+            !!this%sft(iy) = this%sft(iy) + (parts%p(j)%vec(3) - parts%p(i)%vec(3))**2
+            !!! Transverse - z
+            !!this%sft(iz) = this%sft(iz) + (parts%p(j)%vec(2) - parts%p(i)%vec(2))**2
+            !!this%sft(iz) = this%sft(iz) + (parts%p(j)%vec(1) - parts%p(i)%vec(1))**2
+            !!! Add to bin counter
+            !!this%c(ix) = this%c(ix) + 1  
+            !!this%c(iy) = this%c(iy) + 1
+            !!this%c(iz) = this%c(iz) + 1
          end do
       end do
 
@@ -438,17 +465,17 @@ contains
       cross_val(3) = a(1)*b(2) - a(2)*b(1)
    end function cross_product
 
-   subroutine par_perp_u(this, p, q, rll, rt2)
+   subroutine par_perp_u(this, p, q, rll, rt1, rt2)
       implicit none
       type(mpi_stats) :: this
       type(part), intent(in) :: p, q
-      real(4), intent(out) :: rll(3), rt2(3)
-      real(4) :: r(3), rt1(3)
+      real(4), intent(out) :: rll(3), rt1(3), rt2(3)
+      real(4) :: r(3)
       integer :: i
 
       r = get_minr(this, p, q)
       rll = r/norm2(r)
-      rt1 = cross_product(rll, p%vec)/norm2(cross_product(rll, p%vec))
+      rt1 = cross_product(rll, q%vec)/norm2(cross_product(rll, q%vec))
       rt2 = cross_product(rt1, rll)/norm2(cross_product(rt1, rll))
    end subroutine par_perp_u
 
